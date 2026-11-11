@@ -1,0 +1,6 @@
+@actos_frontend_HostAddress = http://localhost:5063
+
+GET {{actos_frontend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
