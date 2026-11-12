@@ -1,6 +1,25 @@
-@actos_frontend_HostAddress = http://localhost:5063
+@host = http://localhost:5063
+# El cliente .http de Visual Studio corta a los 20 s; el backend espera hasta Ia:TimeoutSegundos (60 s).
 
-GET {{actos_frontend_HostAddress}}/weatherforecast/
-Accept: application/json
+### Prueba de conexión con instrucciones por defecto
+POST {{host}}/api/ia/prueba
+Content-Type: application/json
+
+{
+  "texto": "Hola, ¿me confirmás que la conexión funciona?"
+}
+
+### Prueba con instrucciones propias (anticipo de la extracción)
+POST {{host}}/api/ia/prueba
+Content-Type: application/json
+
+{
+  "instrucciones": "Extraé del texto el tipo de poder, el otorgante y el apoderado. Respondé solo con JSON, sin texto adicional.",
+  "texto": "Necesito un poder general de Juan Pérez, DNI 20.123.456, a favor de María Gómez."
+}
+
+###
+### Prueba de conexión con Postgres
+GET {{host}}/api/db/prueba
 
 ###
