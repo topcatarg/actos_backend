@@ -23,3 +23,20 @@ Content-Type: application/json
 GET {{host}}/api/db/prueba
 
 ###
+### Extracción de poder: especial de inmueble
+POST {{host}}/api/poderes/extraer
+Content-Type: application/json
+
+{
+  "texto": "Buenas, necesito hacer un poder especial. Lo otorga Juan Carlos Pérez, DNI 20.123.456, casado, argentino, con domicilio en Av. Siempreviva 742, Mar del Plata. El apoderado es Roberto Daniel Sánchez, DNI 18.456.789. Es para vender un departamento en Rivadavia 1500, CABA, matrícula 12345. Que pueda firmar la escritura y que no pueda sustituir el poder."
+}
+
+### Extracción de poder: general, con datos incompletos
+POST {{host}}/api/poderes/extraer
+Content-Type: application/json
+
+{
+  "texto": "quiero darle un poder general a mi hermana Lucía Fernández. yo soy María Laura Gómez, dni 27654321. que sea irrevocable"
+}
+
+###

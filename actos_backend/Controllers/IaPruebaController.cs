@@ -25,7 +25,7 @@ public class IaPruebaController(IIaClient ia) : ControllerBase
 
         try
         {
-            var respuesta = await ia.CompletarAsync(instrucciones, pedido.Texto, ct);
+            var respuesta = await ia.CompletarAsync(instrucciones, pedido.Texto, ct: ct);
             return Ok(respuesta);
         }
         catch (IaException ex)

@@ -1,4 +1,6 @@
+using actos_backend.Datos;
 using actos_backend.Ia;
+using actos_backend.Poderes;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +20,13 @@ builder.Services.AddHttpClient<IIaClient, OpenAiCompatibleClient>();
 var connectionString = builder.Configuration.GetConnectionString("Actos")
     ?? throw new InvalidOperationException("Falta ConnectionStrings:Actos en la configuración.");
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
+
+// Dapper: mapear columnas snake_case (aplicable_a) a propiedades PascalCase (AplicableA).
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+builder.Services.AddScoped<ICatalogoRepositorio, CatalogoRepositorio>();
+
+// Poderes
+builder.Services.AddScoped<PoderExtractor>();
 
 var app = builder.Build();
 

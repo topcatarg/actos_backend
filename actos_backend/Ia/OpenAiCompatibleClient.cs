@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
@@ -31,7 +32,7 @@ public class OpenAiCompatibleClient : IIaClient
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.ApiKey);
     }
 
-    public async Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, CancellationToken ct = default)
+    public async Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, IaEsquema? esquema = null, CancellationToken ct = default)
     {
         var pedido = new ChatRequest(
             _opciones.Modelo,
@@ -39,7 +40,8 @@ public class OpenAiCompatibleClient : IIaClient
                 new ChatMessage("system", instrucciones),
                 new ChatMessage("user", texto)
             ],
-            string.IsNullOrWhiteSpace(_opciones.NivelRazonamiento) ? null : _opciones.NivelRazonamiento);
+            string.IsNullOrWhiteSpace(_opciones.NivelRazonamiento) ? null : _opciones.NivelRazonamiento,
+            esquema is null ? null : FormatoRespuesta(esquema));
 
         _logger.LogInformation("Llamando a IA {Modelo} (razonamiento: {Nivel})...",
             _opciones.Modelo, pedido.ReasoningEffort ?? "default");
@@ -85,13 +87,27 @@ public class OpenAiCompatibleClient : IIaClient
             reloj.ElapsedMilliseconds);
     }
 
+    /// <summary>response_format con json_schema estricto (formato OpenAI, también lo acepta Gemini).</summary>
+    private static JsonObject FormatoRespuesta(IaEsquema esquema) => new()
+    {
+        ["type"] = "json_schema",
+        ["json_schema"] = new JsonObject
+        {
+            ["name"] = esquema.Nombre,
+            ["strict"] = true,
+            ["schema"] = esquema.Schema.DeepClone()
+        }
+    };
+
     // --- Contratos del formato OpenAI (solo lo que usamos) ---
 
     private record ChatRequest(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] List<ChatMessage> Messages,
         [property: JsonPropertyName("reasoning_effort"),
-                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort);
+                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort,
+        [property: JsonPropertyName("response_format"),
+                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? ResponseFormat);
 
     private record ChatMessage(
         [property: JsonPropertyName("role")] string Role,
