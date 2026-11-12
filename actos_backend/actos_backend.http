@@ -55,4 +55,34 @@ Content-Type: application/json
   "texto": "Poder especial de Juan Carlos Pérez, DNI 20123456, divorciado, a favor de Roberto Daniel Sánchez DNI 18456789, para firmar la escritura de venta de su casa en Calle Falsa 456, Tandil, Buenos Aires."
 }
 
+### Responder: pegá en "anterior" la respuesta COMPLETA del paso previo (/procesar o /responder)
+POST {{host}}/api/poderes/responder
+Content-Type: application/json
+
+{
+  "respuesta": "sí",
+  "anterior": PEGAR_ACA_LA_RESPUESTA_ANTERIOR
+}
+
+### ===== Conversación persistente =====
+### 1) Crear el trámite con el primer mensaje (copiá el codigoTramite de la respuesta)
+POST {{host}}/api/tramites/poder
+Content-Type: application/json
+
+{
+  "texto": "quiero darle un poder general a mi hermana Lucía Fernández. yo soy María Laura Gómez, dni 27654321. que sea irrevocable"
+}
+
+### 2) Responder (cambiá el código y el texto en cada turno)
+@codigo = PODER-AAAAMMDD-XXXX
+POST {{host}}/api/tramites/{{codigo}}/mensajes
+Content-Type: application/json
+
+{
+  "texto": "sí"
+}
+
+### 3) Ver el trámite y el historial
+GET {{host}}/api/tramites/{{codigo}}
+
 ###

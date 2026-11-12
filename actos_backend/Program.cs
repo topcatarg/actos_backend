@@ -25,10 +25,14 @@ builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 builder.Services.AddScoped<ICatalogoRepositorio, CatalogoRepositorio>();
 builder.Services.AddScoped<IPersonasRepositorio, PersonasRepositorio>();
+builder.Services.AddScoped<ITramitesRepositorio, TramitesRepositorio>();
 
 // Poderes
 builder.Services.AddScoped<PoderExtractor>();
 builder.Services.AddScoped<PoderCompletador>();
+builder.Services.AddScoped<RedactorPreguntas>();
+builder.Services.AddScoped<InterpreteRespuestas>();
+builder.Services.AddScoped<ConversacionPoder>();
 
 var app = builder.Build();
 

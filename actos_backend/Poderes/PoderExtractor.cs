@@ -11,8 +11,8 @@ namespace actos_backend.Poderes;
 /// </summary>
 public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger<PoderExtractor> logger)
 {
-    private static readonly string[] TiposPoder = ["general", "especial"];
-    private static readonly string[] Roles = ["otorgante", "apoderado"];
+    private static readonly string[] TiposPoder = Normalizadores.TiposPoder;
+    private static readonly string[] Roles = Normalizadores.Roles;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public async Task<ResultadoExtraccion> ExtraerAsync(string texto, CancellationToken ct = default)
@@ -53,8 +53,10 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
               (copiá letra por letra, sin corregir ni resumir). Usá el pedazo más corto que alcance.
             - "valor" va normalizado: DNI y CUIL solo dígitos; fechas AAAA-MM-DD; códigos en minúscula.
             - Partes: una entrada por persona. Otorgante es quien da el poder; apoderado es quien lo recibe.
-              Para el rol, el fragmento son las palabras del texto que indican ese rol. Si el rol solo surge
-              del contexto y no hay palabras que lo digan, devolvé el rol con fragmento null.
+              El rol es la única excepción a "no deduzcas": si el rol se entiende por el contexto, SIEMPRE
+              completá su valor (otorgante o apoderado). Lo que puede quedar en null es solo el fragmento,
+              cuando no hay palabras concretas que lo digan. Dejá el valor del rol en null únicamente si
+              es imposible saber qué papel tiene la persona.
             - tipoPoder: "general" o "especial" (especial = para un acto o bien determinado).
             - Facultades y condiciones: usá únicamente los códigos de las listas de abajo, y solo si el texto
               las pide. Si el texto no menciona ninguna facultad, devolvé la lista vacía. No agregues defaults.
@@ -114,6 +116,8 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
                     parte.Rol.Inicio = null;
                 }
             }
+            CompletarRolesPorDescarte(p);
+
             // Una parte sin nombre ni DNI no sirve para nada.
             p.Partes.RemoveAll(x => !x.NombreCompleto.TieneValor && !x.Dni.TieneValor);
 
@@ -135,6 +139,25 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             Dato(p.Inmueble.Tipo, "inmueble.tipo");
 
             return _descartes;
+        }
+
+        /// <summary>
+        /// Si todas las partes con rol tienen el mismo (ej. un otorgante) y otras quedaron sin rol,
+        /// a esas les corresponde el otro rol. Queda como inferido, para confirmar.
+        /// </summary>
+        private static void CompletarRolesPorDescarte(PoderExtraido p)
+        {
+            var conRol = p.Partes.Where(x => x.Rol.TieneValor).Select(x => x.Rol.Valor).Distinct().ToList();
+            if (conRol.Count != 1) return;
+
+            var otro = conRol[0] == "otorgante" ? "apoderado" : "otorgante";
+            foreach (var parte in p.Partes.Where(x => !x.Rol.TieneValor))
+            {
+                parte.Rol.Valor = otro;
+                parte.Rol.Fragmento = null;
+                parte.Rol.Inicio = null;
+                parte.Rol.Origen = OrigenDato.Inferido;
+            }
         }
 
         private string[] Condiciones(string categoria) =>
@@ -183,16 +206,8 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             d.Valor = null; d.Fragmento = null; d.Inicio = null; d.Origen = null;
         }
 
-        private static Func<string, string?> Codigo(string[] validos) =>
-            v => validos.FirstOrDefault(c => c.Equals(v, StringComparison.OrdinalIgnoreCase));
-
-        private static string? SoloDigitos(string v)
-        {
-            var digitos = new string(v.Where(char.IsDigit).ToArray());
-            return digitos.Length > 0 ? digitos : null;
-        }
-
-        private static string? Fecha(string v) =>
-            DateOnly.TryParseExact(v, "yyyy-MM-dd", out var f) ? f.ToString("yyyy-MM-dd") : null;
+        private static Func<string, string?> Codigo(IEnumerable<string> validos) => Normalizadores.Codigo(validos);
+        private static string? SoloDigitos(string v) => Normalizadores.SoloDigitos(v);
+        private static string? Fecha(string v) => Normalizadores.Fecha(v);
     }
 }

@@ -15,7 +15,7 @@ public static class PoderEsquema
     public static IaEsquema Crear() => new("poder_extraido", Objeto(
         ("tipoPoder", Dato("Tipo de poder: general o especial")),
         ("partes", Lista(Objeto(
-            ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe). Fragmento: las palabras que indican el rol, o null si solo surge del contexto")),
+            ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe). El valor se completa siempre que se entienda por el contexto; el fragmento puede ser null")),
             ("nombreCompleto", Dato("Nombre y apellido")),
             ("dni", Dato("Solo dígitos")),
             ("cuil", Dato("Solo dígitos")),

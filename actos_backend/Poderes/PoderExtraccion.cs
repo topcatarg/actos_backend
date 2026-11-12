@@ -28,6 +28,8 @@ public static class OrigenDato
 {
     public const string Texto = "texto";      // lo dijo el usuario (con fragmento que lo respalda)
     public const string Inferido = "inferido"; // la IA lo interpretó del contexto, sin frase literal: confirmar
+    public const string Respuesta = "respuesta";   // lo dio el usuario al contestar una pregunta
+    public const string Confirmado = "confirmado"; // el usuario confirmó el valor que había (inferido, default o distinto a la base)
     public const string Base = "base";        // vino del maestro de personas
     public const string Default = "default";  // lo puso el sistema por regla
 }
@@ -42,6 +44,12 @@ public class PoderExtraido
     public Dato FechaVigencia { get; set; } = new();      // solo si vigencia es hasta una fecha
     public Dato Revocabilidad { get; set; } = new();      // código de condición
     public InmuebleExtraido Inmueble { get; set; } = new();
+
+    /// <summary>
+    /// El usuario confirmó que se genere el documento. Se vuelve a false si después cambia algún dato,
+    /// para no generar con datos que no confirmó.
+    /// </summary>
+    public bool GeneracionConfirmada { get; set; }
 }
 
 public class ParteExtraida
@@ -65,6 +73,9 @@ public class ParteExtraida
     /// <summary>Id en pf_maestro si se identificó a la persona por DNI.</summary>
     public int? PfId { get; set; }
 
+    /// <summary>El usuario dijo que no es ninguno de los candidatos: no volver a buscar por nombre.</summary>
+    public bool PersonaNueva { get; set; }
+
     /// <summary>Posibles coincidencias por nombre, para que el usuario confirme. No completan datos.</summary>
     public List<Datos.CandidatoPersona> Candidatos { get; set; } = [];
 }
@@ -86,9 +97,21 @@ public record Descarte(string Campo, string? Valor, string? Fragmento, string Mo
 public record Aviso(string Campo, string Mensaje);
 
 public record ResultadoProceso(
+    MensajeRedactado Mensaje,
     PoderExtraido Poder,
     EstadoPoder Estado,
     List<Descarte> Descartes,
+    List<Aviso> Avisos,
+    string Modelo,
+    int? TokensEntrada,
+    int? TokensSalida,
+    long DuracionMs);
+
+public record ResultadoRespuesta(
+    MensajeRedactado Mensaje,
+    PoderExtraido Poder,
+    EstadoPoder Estado,
+    List<AccionAplicada> Acciones,
     List<Aviso> Avisos,
     string Modelo,
     int? TokensEntrada,

@@ -21,7 +21,9 @@ public record EstadoPoder(
     List<Pendiente> Siguiente,
     /// <summary>Mínimo para guardar borrador (como el HTML): nombre y DNI del primer otorgante.</summary>
     bool PuedeGuardarBorrador,
-    bool ListoParaGenerar);
+    bool ListoParaGenerar,
+    /// <summary>Listo y el usuario confirmó: el front ya puede pedir el documento.</summary>
+    bool GenerarDocumento = false);
 
 /// <summary>
 /// Evalúa el poder y devuelve qué falta, qué confirmar y qué está mal, en el orden en que conviene
@@ -75,16 +77,22 @@ public static class MotorFaltantes
             .ThenBy(p => p.Tipo switch { TipoPendiente.Inconsistente => 0, TipoPendiente.Confirmar => 1, _ => 2 })
             .ToList();
 
-        var siguiente = ordenados.Count == 0
-            ? []
-            : ordenados.Where(p => p.Grupo == ordenados[0].Grupo).ToList();
+        var listo = ordenados.Count == 0;
+
+        // Con todo completo, lo único que queda es confirmar la generación. Va como un pendiente más,
+        // así la respuesta del usuario ("sí, generalo") tiene un campo donde aplicarse.
+        var siguiente = !listo
+            ? ordenados.Where(p => p.Grupo == ordenados[0].Grupo).ToList()
+            : poder.GeneracionConfirmada
+                ? []
+                : [new Pendiente(TipoPendiente.Confirmar, "generar", "generar", "Generar el documento")];
 
         var primerOtorgante = poder.Partes.FirstOrDefault(p => p.Rol.Valor == "otorgante");
         var puedeGuardar = primerOtorgante is not null
                            && primerOtorgante.NombreCompleto.TieneValor
                            && primerOtorgante.Dni.TieneValor;
 
-        return new EstadoPoder(ordenados, siguiente, puedeGuardar, ordenados.Count == 0);
+        return new EstadoPoder(ordenados, siguiente, puedeGuardar, listo, listo && poder.GeneracionConfirmada);
     }
 
     private static void Estructura(PoderExtraido poder, List<Pendiente> pendientes)
@@ -94,11 +102,15 @@ public static class MotorFaltantes
         if (!poder.TipoPoder.TieneValor)
             pendientes.Add(new(TipoPendiente.Falta, g, "tipoPoder", "Tipo de poder", "general o especial"));
 
-        if (!poder.Partes.Any(p => p.Rol.Valor == "otorgante"))
-            pendientes.Add(new(TipoPendiente.Falta, g, "partes", "Otorgante", "No hay ninguna persona que otorgue el poder."));
+        // Si hay personas sin rol o con rol inferido, primero se pregunta/confirma el rol de cada una
+        // (grupo "roles"): recién con todos los roles firmes tiene sentido decir que falta el otorgante o el apoderado.
+        var todasConRol = poder.Partes.All(p => p.Rol.TieneValor && p.Rol.Origen != OrigenDato.Inferido);
 
-        if (!poder.Partes.Any(p => p.Rol.Valor == "apoderado"))
-            pendientes.Add(new(TipoPendiente.Falta, g, "partes", "Apoderado", "No hay ninguna persona que reciba el poder."));
+        if (todasConRol && !poder.Partes.Any(p => p.Rol.Valor == "otorgante"))
+            pendientes.Add(new(TipoPendiente.Falta, g, "partes.otorgante", "Otorgante", "Todavía no se indicó quién otorga el poder."));
+
+        if (todasConRol && !poder.Partes.Any(p => p.Rol.Valor == "apoderado"))
+            pendientes.Add(new(TipoPendiente.Falta, g, "partes.apoderado", "Apoderado", "Todavía no se indicó a favor de quién se otorga el poder."));
 
         // La misma persona (por DNI) no puede aparecer dos veces.
         foreach (var repetido in poder.Partes.Where(p => p.Dni.TieneValor).GroupBy(p => p.Dni.Valor).Where(x => x.Count() > 1))

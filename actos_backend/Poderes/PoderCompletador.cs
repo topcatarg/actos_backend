@@ -49,7 +49,7 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
             return;
         }
 
-        if (parte.NombreCompleto.TieneValor)
+        if (parte.NombreCompleto.TieneValor && !parte.PersonaNueva)
         {
             parte.Candidatos = (await personas.BuscarPorNombreAsync(parte.NombreCompleto.Valor!, ct)).ToList();
             if (parte.Candidatos.Count > 0)
@@ -70,7 +70,8 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
             return;
         }
 
-        if (!Equivalentes(dato.Valor!, valorBase))
+        // Si el usuario ya confirmó su valor, no se vuelve a avisar la diferencia.
+        if (dato.Origen != OrigenDato.Confirmado && !Equivalentes(dato.Valor!, valorBase))
             avisos.Add(new Aviso(campo, $"Se dijo '{dato.Valor}' pero en la base figura '{valorBase}'. Se usa lo dicho."));
     }
 

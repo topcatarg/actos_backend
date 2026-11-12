@@ -5,9 +5,13 @@ using Npgsql;
 
 namespace actos_backend.Controllers;
 
+/// <summary>
+/// Endpoints SIN estado: el poder viaja completo en cada pedido. Sirven para probar cada pieza
+/// por separado. La conversación persistente está en /api/tramites.
+/// </summary>
 [ApiController]
 [Route("api/poderes")]
-public class PoderesController(PoderExtractor extractor, PoderCompletador completador) : ControllerBase
+public class PoderesController(PoderExtractor extractor, ConversacionPoder conversacion, RedactorPreguntas redactor) : ControllerBase
 {
     public record ExtraerRequest(string Texto);
 
@@ -18,52 +22,73 @@ public class PoderesController(PoderExtractor extractor, PoderCompletador comple
         if (string.IsNullOrWhiteSpace(pedido.Texto))
             return BadRequest(new { error = "Falta 'texto'." });
 
-        try
-        {
-            return Ok(await extractor.ExtraerAsync(pedido.Texto, ct));
-        }
+        try { return Ok(await extractor.ExtraerAsync(pedido.Texto, ct)); }
         catch (IaException ex) { return ErrorIa(ex); }
         catch (NpgsqlException ex) { return ErrorDb(ex); }
     }
 
-    /// <summary>Extrae y completa: datos de la base para personas con DNI, candidatos por nombre y defaults.</summary>
+    /// <summary>Primer mensaje: extrae, completa, evalúa y redacta la primera pregunta.</summary>
     [HttpPost("procesar")]
     public async Task<IActionResult> Procesar([FromBody] ExtraerRequest pedido, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(pedido.Texto))
             return BadRequest(new { error = "Falta 'texto'." });
 
-        try
-        {
-            var extraccion = await extractor.ExtraerAsync(pedido.Texto, ct);
-            var avisos = await completador.CompletarAsync(extraccion.Poder, ct);
-            var estado = MotorFaltantes.Evaluar(extraccion.Poder, avisos);
-            return Ok(new ResultadoProceso(extraccion.Poder, estado, extraccion.Descartes, avisos,
-                extraccion.Modelo, extraccion.TokensEntrada, extraccion.TokensSalida, extraccion.DuracionMs));
-        }
+        try { return Ok(await conversacion.IniciarAsync(pedido.Texto, ct)); }
         catch (IaException ex) { return ErrorIa(ex); }
         catch (NpgsqlException ex) { return ErrorDb(ex); }
     }
 
     /// <summary>
-    /// Evalúa un poder ya armado (sin IA ni base): sirve para probar el motor de faltantes
-    /// editando a mano el JSON que devuelve /procesar.
+    /// Dos formas de mandar el contexto:
+    /// - "anterior": la respuesta completa del paso previo (/procesar o /responder), pegada tal cual.
+    /// - "poder" + "preguntado": el poder y el grupo "siguiente" que se usó para la última pregunta.
     /// </summary>
+    public record ResponderRequest(string Respuesta, PasoAnterior? Anterior, PoderExtraido? Poder, List<Pendiente>? Preguntado);
+
+    /// <summary>Lo único que se lee de la respuesta anterior; el resto del JSON se ignora.</summary>
+    public record PasoAnterior(PoderExtraido? Poder, EstadoPoder? Estado);
+
+    /// <summary>Aplica la respuesta del usuario a la última pregunta.</summary>
+    [HttpPost("responder")]
+    public async Task<IActionResult> Responder([FromBody] ResponderRequest pedido, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(pedido.Respuesta))
+            return BadRequest(new { error = "Falta 'respuesta'." });
+
+        var poder = pedido.Anterior?.Poder ?? pedido.Poder;
+        var preguntado = pedido.Anterior?.Estado?.Siguiente ?? pedido.Preguntado ?? [];
+        if (poder is null)
+            return BadRequest(new { error = "Falta el poder: mandá 'anterior' (respuesta del paso previo) o 'poder' + 'preguntado'." });
+
+        try { return Ok(await conversacion.ResponderAsync(poder, preguntado, pedido.Respuesta, ct)); }
+        catch (IaException ex) { return ErrorIa(ex); }
+        catch (NpgsqlException ex) { return ErrorDb(ex); }
+    }
+
+    /// <summary>Evalúa un poder ya armado (sin IA ni base): para probar el motor de faltantes.</summary>
     [HttpPost("estado")]
     public IActionResult Estado([FromBody] PoderExtraido poder) => Ok(MotorFaltantes.Evaluar(poder));
 
-    private ObjectResult ErrorIa(IaException ex) =>
-        StatusCode(StatusCodes.Status502BadGateway, new
-        {
-            error = ex.Message,
-            statusProveedor = ex.StatusCode,
-            detalle = ex.Detalle
-        });
+    public record RedactarRequest(PoderExtraido Poder, bool PrimerMensaje = false);
 
-    private ObjectResult ErrorDb(NpgsqlException ex) =>
-        StatusCode(StatusCodes.Status503ServiceUnavailable, new
+    /// <summary>Evalúa un poder ya armado y redacta la próxima pregunta: para probar el tono.</summary>
+    [HttpPost("redactar")]
+    public async Task<IActionResult> Redactar([FromBody] RedactarRequest pedido, CancellationToken ct)
+    {
+        try
         {
-            error = "Error consultando Postgres.",
-            detalle = ex.Message
-        });
+            var estado = MotorFaltantes.Evaluar(pedido.Poder);
+            var mensaje = await redactor.RedactarAsync(pedido.Poder, estado, pedido.PrimerMensaje, ct);
+            return Ok(new { mensaje, estado });
+        }
+        catch (IaException ex) { return ErrorIa(ex); }
+        catch (NpgsqlException ex) { return ErrorDb(ex); }
+    }
+
+    private ObjectResult ErrorIa(IaException ex) => StatusCode(StatusCodes.Status502BadGateway,
+        new { error = ex.Message, statusProveedor = ex.StatusCode, detalle = ex.Detalle });
+
+    private ObjectResult ErrorDb(NpgsqlException ex) => StatusCode(StatusCodes.Status503ServiceUnavailable,
+        new { error = "Error consultando Postgres.", detalle = ex.Message });
 }
