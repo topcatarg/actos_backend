@@ -32,7 +32,8 @@ public class OpenAiCompatibleClient : IIaClient
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.ApiKey);
     }
 
-    public async Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, IaEsquema? esquema = null, CancellationToken ct = default)
+    public async Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, IaEsquema? esquema = null,
+        double? temperatura = null, CancellationToken ct = default)
     {
         var pedido = new ChatRequest(
             _opciones.Modelo,
@@ -41,7 +42,8 @@ public class OpenAiCompatibleClient : IIaClient
                 new ChatMessage("user", texto)
             ],
             string.IsNullOrWhiteSpace(_opciones.NivelRazonamiento) ? null : _opciones.NivelRazonamiento,
-            esquema is null ? null : FormatoRespuesta(esquema));
+            esquema is null ? null : FormatoRespuesta(esquema),
+            temperatura);
 
         _logger.LogInformation("Llamando a IA {Modelo} (razonamiento: {Nivel})...",
             _opciones.Modelo, pedido.ReasoningEffort ?? "default");
@@ -107,7 +109,9 @@ public class OpenAiCompatibleClient : IIaClient
         [property: JsonPropertyName("reasoning_effort"),
                    JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort,
         [property: JsonPropertyName("response_format"),
-                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? ResponseFormat);
+                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? ResponseFormat,
+        [property: JsonPropertyName("temperature"),
+                   JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? Temperature);
 
     private record ChatMessage(
         [property: JsonPropertyName("role")] string Role,

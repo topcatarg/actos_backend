@@ -19,7 +19,8 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
     {
         var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
 
-        var respuesta = await ia.CompletarAsync(Instrucciones(clausulas), texto, PoderEsquema.Crear(), ct);
+        // Temperatura 0: el mismo texto tiene que dar siempre la misma extracción.
+        var respuesta = await ia.CompletarAsync(Instrucciones(clausulas), texto, PoderEsquema.Crear(), temperatura: 0, ct: ct);
 
         PoderExtraido poder;
         try
@@ -51,8 +52,9 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             - "fragmento" es una copia TEXTUAL y exacta del pedazo del texto que respalda el valor
               (copiá letra por letra, sin corregir ni resumir). Usá el pedazo más corto que alcance.
             - "valor" va normalizado: DNI y CUIL solo dígitos; fechas AAAA-MM-DD; códigos en minúscula.
-            - Partes: otorgante es quien da el poder; apoderado es quien lo recibe ("a favor de", "para que me represente").
-              Una entrada por persona.
+            - Partes: una entrada por persona. Otorgante es quien da el poder; apoderado es quien lo recibe.
+              Para el rol, el fragmento son las palabras del texto que indican ese rol. Si el rol solo surge
+              del contexto y no hay palabras que lo digan, devolvé el rol con fragmento null.
             - tipoPoder: "general" o "especial" (especial = para un acto o bien determinado).
             - Facultades y condiciones: usá únicamente los códigos de las listas de abajo, y solo si el texto
               las pide. Si el texto no menciona ninguna facultad, devolvé la lista vacía. No agregues defaults.
@@ -91,7 +93,8 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             {
                 var parte = p.Partes[i];
                 var c = $"partes[{i}]";
-                Dato(parte.Rol, $"{c}.rol", Codigo(Roles));
+                // El rol es una interpretación: si no hay frase literal, se conserva como "inferido" para confirmar.
+                Dato(parte.Rol, $"{c}.rol", Codigo(Roles), fragmentoOpcional: true);
                 Dato(parte.NombreCompleto, $"{c}.nombreCompleto");
                 Dato(parte.Dni, $"{c}.dni", SoloDigitos);
                 Dato(parte.Cuil, $"{c}.cuil", SoloDigitos);
@@ -101,6 +104,15 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
                 Dato(parte.Domicilio, $"{c}.domicilio");
                 Dato(parte.Padre, $"{c}.padre");
                 Dato(parte.Madre, $"{c}.madre");
+
+                // Citar el nombre de la persona no respalda su rol.
+                if (parte.Rol.Origen == OrigenDato.Texto && parte.NombreCompleto.TieneValor &&
+                    parte.NombreCompleto.Valor!.Contains(parte.Rol.Fragmento!.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    parte.Rol.Origen = OrigenDato.Inferido;
+                    parte.Rol.Fragmento = null;
+                    parte.Rol.Inicio = null;
+                }
             }
             // Una parte sin nombre ni DNI no sirve para nada.
             p.Partes.RemoveAll(x => !x.NombreCompleto.TieneValor && !x.Dni.TieneValor);
@@ -116,6 +128,7 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             Dato(p.Revocabilidad, "revocabilidad", Codigo(Condiciones("revocabilidad")));
 
             Dato(p.Inmueble.Direccion, "inmueble.direccion");
+            Dato(p.Inmueble.Localidad, "inmueble.localidad");
             Dato(p.Inmueble.Provincia, "inmueble.provincia");
             Dato(p.Inmueble.Matricula, "inmueble.matricula");
             Dato(p.Inmueble.Nomenclatura, "inmueble.nomenclatura");
@@ -128,19 +141,20 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             clausulas.Where(c => c.Tipo == "condicion" && c.Categoria == categoria).Select(c => c.Codigo).ToArray();
 
         /// <param name="normalizar">Devuelve el valor normalizado, o null si es inválido.</param>
-        private void Dato(Dato? d, string campo, Func<string, string?>? normalizar = null)
+        /// <param name="fragmentoOpcional">Si el fragmento no está, conservar el valor como inferido en vez de descartarlo.</param>
+        private void Dato(Dato? d, string campo, Func<string, string?>? normalizar = null, bool fragmentoOpcional = false)
         {
             if (d is null) return;
 
             if (!d.TieneValor)
             {
-                d.Valor = null; d.Fragmento = null; d.Inicio = null;
+                d.Valor = null; d.Fragmento = null; d.Inicio = null; d.Origen = null;
                 return;
             }
 
             var valor = d.Valor!.Trim();
             var inicio = d.Fragmento is null ? null : BuscadorFragmentos.Buscar(texto, d.Fragmento);
-            if (inicio is null)
+            if (inicio is null && !fragmentoOpcional)
             {
                 Descartar(d, campo, "El fragmento no aparece en el texto.");
                 return;
@@ -159,12 +173,14 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
 
             d.Valor = valor;
             d.Inicio = inicio;
+            if (inicio is null) d.Fragmento = null;
+            d.Origen = inicio is null ? OrigenDato.Inferido : OrigenDato.Texto;
         }
 
         private void Descartar(Dato d, string campo, string motivo)
         {
             _descartes.Add(new Descarte(campo, d.Valor, d.Fragmento, motivo));
-            d.Valor = null; d.Fragmento = null; d.Inicio = null;
+            d.Valor = null; d.Fragmento = null; d.Inicio = null; d.Origen = null;
         }
 
         private static Func<string, string?> Codigo(string[] validos) =>

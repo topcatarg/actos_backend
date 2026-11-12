@@ -15,7 +15,7 @@ public static class PoderEsquema
     public static IaEsquema Crear() => new("poder_extraido", Objeto(
         ("tipoPoder", Dato("Tipo de poder: general o especial")),
         ("partes", Lista(Objeto(
-            ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe)")),
+            ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe). Fragmento: las palabras que indican el rol, o null si solo surge del contexto")),
             ("nombreCompleto", Dato("Nombre y apellido")),
             ("dni", Dato("Solo dígitos")),
             ("cuil", Dato("Solo dígitos")),
@@ -31,7 +31,8 @@ public static class PoderEsquema
         ("fechaVigencia", Dato("AAAA-MM-DD, solo si la vigencia es hasta una fecha")),
         ("revocabilidad", Dato("Código de condición de revocabilidad")),
         ("inmueble", Objeto(
-            ("direccion", Dato("Dirección del inmueble")),
+            ("direccion", Dato("Calle y número del inmueble")),
+            ("localidad", Dato("Ciudad o localidad")),
             ("provincia", Dato("Provincia")),
             ("matricula", Dato("Matrícula")),
             ("nomenclatura", Dato("Nomenclatura catastral")),

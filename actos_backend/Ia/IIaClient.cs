@@ -11,7 +11,9 @@ public interface IIaClient
     /// <param name="instrucciones">Mensaje de sistema: qué tiene que hacer el modelo.</param>
     /// <param name="texto">Mensaje de usuario: el texto a procesar.</param>
     /// <param name="esquema">Si viene, el modelo queda obligado a responder JSON con esa forma.</param>
-    Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, IaEsquema? esquema = null, CancellationToken ct = default);
+    /// <param name="temperatura">0 = respuestas estables (extracción); más alto = más variadas (redacción). Null = default del modelo.</param>
+    Task<IaRespuesta> CompletarAsync(string instrucciones, string texto, IaEsquema? esquema = null,
+        double? temperatura = null, CancellationToken ct = default);
 }
 
 /// <summary>JSON schema que se le exige a la respuesta (salida estructurada).</summary>

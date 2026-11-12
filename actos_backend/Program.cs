@@ -24,9 +24,11 @@ builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 // Dapper: mapear columnas snake_case (aplicable_a) a propiedades PascalCase (AplicableA).
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 builder.Services.AddScoped<ICatalogoRepositorio, CatalogoRepositorio>();
+builder.Services.AddScoped<IPersonasRepositorio, PersonasRepositorio>();
 
 // Poderes
 builder.Services.AddScoped<PoderExtractor>();
+builder.Services.AddScoped<PoderCompletador>();
 
 var app = builder.Build();
 

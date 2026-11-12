@@ -39,4 +39,20 @@ Content-Type: application/json
   "texto": "quiero darle un poder general a mi hermana Lucía Fernández. yo soy María Laura Gómez, dni 27654321. que sea irrevocable"
 }
 
+### Procesar (extraer + completar): María está en la base por DNI; Lucía solo por nombre
+POST {{host}}/api/poderes/procesar
+Content-Type: application/json
+
+{
+  "texto": "quiero darle un poder general a mi hermana Lucía Fernández. yo soy María Laura Gómez, dni 27654321. que sea irrevocable"
+}
+
+### Procesar: estado civil dicho distinto al de la base (Juan figura casado)
+POST {{host}}/api/poderes/procesar
+Content-Type: application/json
+
+{
+  "texto": "Poder especial de Juan Carlos Pérez, DNI 20123456, divorciado, a favor de Roberto Daniel Sánchez DNI 18456789, para firmar la escritura de venta de su casa en Calle Falsa 456, Tandil, Buenos Aires."
+}
+
 ###
