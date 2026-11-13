@@ -9,13 +9,16 @@ namespace actos_backend.Controllers;
 [Route("api/catalogo")]
 public class CatalogoController(ICatalogoRepositorio catalogo) : ControllerBase
 {
-    /// <summary>Facultades y condiciones activas (código, nombre, tipo, categoría, a qué tipos de poder aplica).</summary>
+    /// <summary>Facultades y condiciones activas de un acto (código, nombre, tipo, categoría, a qué tipos de poder aplica).</summary>
     [HttpGet("clausulas")]
-    public async Task<IActionResult> Clausulas(CancellationToken ct)
+    public async Task<IActionResult> Clausulas([FromQuery] string? acto, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(acto))
+            return BadRequest(new { error = "Falta 'acto' (ej. ?acto=poder)." });
+
         try
         {
-            return Ok(await catalogo.ObtenerClausulasActivasAsync(ct));
+            return Ok(await catalogo.ObtenerClausulasActivasAsync(acto, ct));
         }
         catch (NpgsqlException ex)
         {

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using actos_backend.Bloques;
 using actos_backend.Datos;
 
 namespace actos_backend.Poderes;
@@ -15,7 +16,6 @@ public static class AplicadorRespuestas
 {
     private static readonly Regex CampoParte = new(
         @"^partes\[(\d+)\]\.(rol|nombreCompleto|nombres|apellido|dni|cuil|genero|estadoCivil|nacionalidad|fechaNacimiento|domicilio|padre|madre|identidad)$");
-    private static readonly Regex CampoInmueble = new(@"^inmueble\.(direccion|localidad|provincia|matricula|nomenclatura|tipo)$");
     private static readonly string[] CamposPoder = ["tipoPoder", "facultades", "sustitucion", "vigencia", "fechaVigencia", "revocabilidad"];
 
     /// <summary>Máximo de personas nuevas que se pueden agregar en una sola respuesta.</summary>
@@ -47,6 +47,10 @@ public static class AplicadorRespuestas
         if (campo == "facultades")
             return Facultades(poder, a, respuesta, clausulas);
 
+        // Inmueble, vehículos, cuenta bancaria, expediente...: lo resuelve la capa genérica de bloques.
+        if (AplicadorBloques.EsCampoDeBloque(campo))
+            return AplicadorBloques.Aplicar(poder, campo, a.Accion, a.Valor, a.Fragmento, respuesta);
+
         if (campo == "generar")
         {
             if (a.Accion is not (TipoAccion.Confirmar or TipoAccion.Rechazar)) return $"Acción '{a.Accion}' no válida para generar.";
@@ -68,7 +72,7 @@ public static class AplicadorRespuestas
             if (nombreCampo == "identidad")
                 return Identidad(parte, a);
         }
-        else if (CampoInmueble.IsMatch(campo) || CamposPoder.Contains(campo))
+        else if (CamposPoder.Contains(campo))
         {
             nombreCampo = campo;
         }
@@ -210,10 +214,7 @@ public static class AplicadorRespuestas
         : campo switch
         {
             "tipoPoder" => poder.TipoPoder, "sustitucion" => poder.Sustitucion, "vigencia" => poder.Vigencia,
-            "fechaVigencia" => poder.FechaVigencia, "revocabilidad" => poder.Revocabilidad,
-            "inmueble.direccion" => poder.Inmueble.Direccion, "inmueble.localidad" => poder.Inmueble.Localidad,
-            "inmueble.provincia" => poder.Inmueble.Provincia, "inmueble.matricula" => poder.Inmueble.Matricula,
-            "inmueble.nomenclatura" => poder.Inmueble.Nomenclatura, _ => poder.Inmueble.Tipo
+            "fechaVigencia" => poder.FechaVigencia, _ => poder.Revocabilidad
         };
 
     private static Func<string, string?>? Normalizador(string campo, IReadOnlyList<Clausula> clausulas)
@@ -223,8 +224,8 @@ public static class AplicadorRespuestas
 
         return campo switch
         {
-            "rol" => Normalizadores.Codigo(Normalizadores.Roles),
-            "tipoPoder" => Normalizadores.Codigo(Normalizadores.TiposPoder),
+            "rol" => Normalizadores.Codigo(CodigosPoder.Roles),
+            "tipoPoder" => Normalizadores.Codigo(CodigosPoder.TiposPoder),
             "dni" or "cuil" => Normalizadores.SoloDigitos,
             "fechaNacimiento" or "fechaVigencia" => Normalizadores.Fecha,
             "genero" => Normalizadores.Genero,

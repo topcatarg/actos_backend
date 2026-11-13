@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using actos_backend.Bloques;
 using actos_backend.Datos;
 using actos_backend.Ia;
 
@@ -100,8 +101,8 @@ public class InterpreteRespuestas(IIaClient ia, ILogger<InterpreteRespuestas> lo
                           (p.Candidatos.Count > 0 ? $", .identidad (candidatos: {string.Join("; ", p.Candidatos.Select(c => $"{c.NombreCompleto} DNI {c.Dni}"))})" : ""));
         }
         sb.AppendLine($"- partes[{poder.Partes.Count}] = índice libre para agregar una persona nueva (mismos campos)");
-        sb.AppendLine("- tipoPoder (general o especial), facultades, sustitucion, vigencia, fechaVigencia, revocabilidad");
-        sb.AppendLine("- inmueble.direccion, inmueble.localidad, inmueble.provincia, inmueble.matricula, inmueble.nomenclatura, inmueble.tipo");
+        sb.AppendLine("- tipoPoder (general, especial, bancario, judicial o administrativo), facultades, sustitucion, vigencia, fechaVigencia, revocabilidad");
+        sb.Append(EsquemaBloques.CamposParaRespuestas(poder));
         sb.AppendLine("- generar: confirmar si quiere generar el documento ahora; rechazar si todavía no");
         sb.AppendLine();
 

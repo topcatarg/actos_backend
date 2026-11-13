@@ -4,8 +4,9 @@ using actos_backend.Poderes;
 namespace actos_backend.Tramites;
 
 /// <summary>Lo que necesita el front para mostrar la conversación de un trámite.</summary>
+/// <param name="Datos">Los datos del acto (PoderExtraido, y más adelante los de otros actos). object para que se serialice el tipo real.</param>
 public record RespuestaTramite(string CodigoTramite, string EstadoTramite, string Mensaje, EstadoPoder Estado,
-    PoderExtraido Poder, object Detalle);
+    object Datos, object Detalle);
 
 /// <summary>
 /// Crea y avanza trámites persistentes. Lo usan TramitesController (endpoints por acto) y

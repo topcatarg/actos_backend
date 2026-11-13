@@ -14,22 +14,23 @@ public class Clausula
 
 public interface ICatalogoRepositorio
 {
-    Task<IReadOnlyList<Clausula>> ObtenerClausulasActivasAsync(CancellationToken ct = default);
+    /// <summary>Facultades y condiciones activas del acto indicado (ej. "poder").</summary>
+    Task<IReadOnlyList<Clausula>> ObtenerClausulasActivasAsync(string acto, CancellationToken ct = default);
 }
 
 public class CatalogoRepositorio(NpgsqlDataSource db) : ICatalogoRepositorio
 {
-    public async Task<IReadOnlyList<Clausula>> ObtenerClausulasActivasAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Clausula>> ObtenerClausulasActivasAsync(string acto, CancellationToken ct = default)
     {
         const string sql = """
             SELECT codigo, nombre, tipo, categoria, aplicable_a
             FROM clausulas_template
-            WHERE activo = true
-            ORDER BY tipo, categoria, orden
+            WHERE activo = true AND acto = @acto
+            ORDER BY tipo, orden, categoria
             """;
 
         await using var conn = await db.OpenConnectionAsync(ct);
-        var filas = await conn.QueryAsync<Clausula>(new CommandDefinition(sql, cancellationToken: ct));
+        var filas = await conn.QueryAsync<Clausula>(new CommandDefinition(sql, new { acto }, cancellationToken: ct));
         return filas.AsList();
     }
 }

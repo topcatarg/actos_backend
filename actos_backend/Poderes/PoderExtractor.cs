@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using actos_backend.Bloques;
 using actos_backend.Datos;
 using actos_backend.Ia;
 
@@ -9,18 +10,19 @@ namespace actos_backend.Poderes;
 /// Texto libre → datos del poder. La IA solo interpreta; C# valida que cada dato tenga
 /// respaldo en el texto y que los códigos existan en el catálogo. Lo que no pasa se descarta.
 /// </summary>
-public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger<PoderExtractor> logger)
+public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, IActosRepositorio actos, ILogger<PoderExtractor> logger)
 {
-    private static readonly string[] TiposPoder = Normalizadores.TiposPoder;
-    private static readonly string[] Roles = Normalizadores.Roles;
+    private static readonly string[] TiposPoder = CodigosPoder.TiposPoder;
+    private static readonly string[] Roles = CodigosPoder.Roles;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public async Task<ResultadoExtraccion> ExtraerAsync(string texto, CancellationToken ct = default)
     {
-        var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
+        var bloques = CatalogoBloques.De((await actos.ObtenerPartesAsync(Actos.Poder, ct)).Select(p => p.Bloque));
 
         // Temperatura 0: el mismo texto tiene que dar siempre la misma extracción.
-        var respuesta = await ia.CompletarAsync(Instrucciones(clausulas), texto, PoderEsquema.Crear(), temperatura: 0, ct: ct);
+        var respuesta = await ia.CompletarAsync(Instrucciones(clausulas, bloques), texto, PoderEsquema.Crear(bloques), temperatura: 0, ct: ct);
 
         PoderExtraido poder;
         try
@@ -40,7 +42,7 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             respuesta.TokensEntrada, respuesta.TokensSalida, respuesta.DuracionMs);
     }
 
-    private static string Instrucciones(IReadOnlyList<Clausula> clausulas)
+    private static string Instrucciones(IReadOnlyList<Clausula> clausulas, IReadOnlyList<Bloque> bloques)
     {
         var sb = new StringBuilder();
         sb.AppendLine("""
@@ -63,11 +65,12 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             - nombres y apellido: separalos solo si es claro cuál es cuál ("Juan Carlos Pérez" → nombres
               "Juan Carlos", apellido "Pérez"). Si hay duda ("Juan Carlos", "María José", un solo nombre),
               dejá el apellido en null: se va a preguntar aparte. Nunca adivines el apellido.
-            - tipoPoder: "general" o "especial" (especial = para un acto o bien determinado).
+            - tipoPoder: "general" (amplio), "especial" (para un acto o bien determinado: vender un auto, un inmueble...),
+              "bancario" (operar con bancos), "judicial" (juicios) o "administrativo" (trámites ante organismos).
             - Facultades y condiciones: usá únicamente los códigos de las listas de abajo, y solo si el texto
               las pide. Si el texto no menciona ninguna facultad, devolvé la lista vacía. No agregues defaults.
-            - inmueble: solo si el texto menciona un inmueble concreto; si no, todos sus campos en null.
             """);
+        sb.Append(EsquemaBloques.Instrucciones(bloques));
 
         sb.AppendLine("FACULTADES (código: descripción):");
         foreach (var c in clausulas.Where(c => c.Tipo == "facultad"))
@@ -93,7 +96,7 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             // Por si el proveedor no respetó el schema y mandó null en vez de lista/objeto.
             p.Partes ??= [];
             p.Facultades ??= [];
-            p.Inmueble ??= new();
+            p.Bloques ??= [];
 
             Dato(p.TipoPoder, "tipoPoder", Codigo(TiposPoder));
 
@@ -141,12 +144,7 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
             Dato(p.FechaVigencia, "fechaVigencia", Fecha);
             Dato(p.Revocabilidad, "revocabilidad", Codigo(Condiciones("revocabilidad")));
 
-            Dato(p.Inmueble.Direccion, "inmueble.direccion");
-            Dato(p.Inmueble.Localidad, "inmueble.localidad");
-            Dato(p.Inmueble.Provincia, "inmueble.provincia");
-            Dato(p.Inmueble.Matricula, "inmueble.matricula");
-            Dato(p.Inmueble.Nomenclatura, "inmueble.nomenclatura");
-            Dato(p.Inmueble.Tipo, "inmueble.tipo");
+            EsquemaBloques.Validar(p, (d, campo, normalizar) => Dato(d, campo, normalizar));
 
             return _descartes;
         }

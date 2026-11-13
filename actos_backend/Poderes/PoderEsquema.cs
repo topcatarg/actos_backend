@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using actos_backend.Bloques;
 using actos_backend.Ia;
 
 namespace actos_backend.Poderes;
@@ -12,8 +13,9 @@ namespace actos_backend.Poderes;
 /// </summary>
 public static class PoderEsquema
 {
-    public static IaEsquema Crear() => new("poder_extraido", Objeto(
-        ("tipoPoder", Dato("Tipo de poder: general o especial")),
+    /// <param name="bloques">Bloques de datos que puede llevar el poder (salen de actos_partes).</param>
+    public static IaEsquema Crear(IReadOnlyList<Bloque> bloques) => new("poder_extraido", Objeto(
+        ("tipoPoder", Dato("Tipo de poder: general, especial, bancario, judicial o administrativo")),
         ("partes", Lista(Objeto(
             ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe). El valor se completa siempre que se entienda por el contexto; el fragmento puede ser null")),
             ("nombreCompleto", Dato("Nombres y apellido completos, tal como aparecen")),
@@ -32,48 +34,9 @@ public static class PoderEsquema
         ("vigencia", Dato("Código de condición de vigencia")),
         ("fechaVigencia", Dato("AAAA-MM-DD, solo si la vigencia es hasta una fecha")),
         ("revocabilidad", Dato("Código de condición de revocabilidad")),
-        ("inmueble", Objeto(
-            ("direccion", Dato("Calle y número del inmueble")),
-            ("localidad", Dato("Ciudad o localidad")),
-            ("provincia", Dato("Provincia")),
-            ("matricula", Dato("Matrícula")),
-            ("nomenclatura", Dato("Nomenclatura catastral")),
-            ("tipo", Dato("departamento, casa, lote, local..."))))));
+        ("bloques", EsquemaBloques.Esquema(bloques))));
 
-    private static JsonObject Dato(string descripcion) => new()
-    {
-        ["type"] = "object",
-        ["description"] = descripcion,
-        ["properties"] = new JsonObject
-        {
-            ["valor"] = new JsonObject { ["type"] = new JsonArray("string", "null") },
-            ["fragmento"] = new JsonObject { ["type"] = new JsonArray("string", "null") }
-        },
-        ["required"] = new JsonArray("valor", "fragmento"),
-        ["additionalProperties"] = false
-    };
-
-    private static JsonObject Lista(JsonObject items) => new()
-    {
-        ["type"] = "array",
-        ["items"] = items
-    };
-
-    private static JsonObject Objeto(params (string Nombre, JsonObject Schema)[] propiedades)
-    {
-        var props = new JsonObject();
-        var requeridas = new JsonArray();
-        foreach (var (nombre, schema) in propiedades)
-        {
-            props[nombre] = schema;
-            requeridas.Add(nombre);
-        }
-        return new JsonObject
-        {
-            ["type"] = "object",
-            ["properties"] = props,
-            ["required"] = requeridas,
-            ["additionalProperties"] = false
-        };
-    }
+    private static JsonObject Dato(string descripcion) => EsquemaJson.Dato(descripcion);
+    private static JsonObject Lista(JsonObject items) => EsquemaJson.Lista(items);
+    private static JsonObject Objeto(params (string Nombre, JsonObject Schema)[] propiedades) => EsquemaJson.Objeto(propiedades);
 }

@@ -30,7 +30,7 @@ public class ConversacionPoder(
     public async Task<ResultadoRespuesta> ResponderAsync(PoderExtraido poder, List<Pendiente> preguntado, string respuesta,
         CancellationToken ct = default)
     {
-        var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
         var (acciones, ia) = await interprete.InterpretarAsync(poder, preguntado, respuesta, clausulas, ct);
         var aplicadas = AplicadorRespuestas.Aplicar(poder, acciones, respuesta, clausulas);
 

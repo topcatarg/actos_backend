@@ -161,4 +161,4 @@ GET {{host}}/api/actos/poder/partes
 
 ###
 ### Catálogo: facultades y condiciones (para mostrar nombres en el front)
-GET {{host}}/api/catalogo/clausulas
+GET {{host}}/api/catalogo/clausulas?acto=poder

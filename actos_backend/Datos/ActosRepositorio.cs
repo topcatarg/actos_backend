@@ -13,10 +13,23 @@ public class OpcionActo
     public bool Habilitado { get; init; }
 }
 
+/// <summary>Una pestaña de un acto (tabla actos_partes).</summary>
 public class ParteActo
 {
     public string Codigo { get; init; } = "";
     public string Nombre { get; init; } = "";
+
+    /// <summary>
+    /// Qué muestra la pestaña: un bloque de datos (inmueble, vehiculo...) o una vista del acto
+    /// (persona, facultades, condiciones, revision). Es la referencia común con el front.
+    /// </summary>
+    public string Bloque { get; init; } = "";
+
+    /// <summary>Para las pestañas de personas: qué rol muestra (otorgante, vendedor...).</summary>
+    public string? Rol { get; init; }
+
+    /// <summary>Cuándo aparece (ver ActivadorPartes). Null = siempre.</summary>
+    public string? Condicion { get; init; }
 }
 
 public interface IActosRepositorio
@@ -58,7 +71,7 @@ public class ActosRepositorio(NpgsqlDataSource db) : IActosRepositorio
     public async Task<IReadOnlyList<ParteActo>> ObtenerPartesAsync(string codigoActo, CancellationToken ct = default)
     {
         const string sql = """
-            SELECT codigo, nombre
+            SELECT codigo, nombre, bloque, rol, condicion
             FROM actos_partes
             WHERE activo AND acto_codigo = @codigoActo
             ORDER BY orden, nombre

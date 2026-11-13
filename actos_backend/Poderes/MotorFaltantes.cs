@@ -1,19 +1,7 @@
 using System.Text.RegularExpressions;
+using actos_backend.Bloques;
 
 namespace actos_backend.Poderes;
-
-public static class TipoPendiente
-{
-    public const string Inconsistente = "inconsistente"; // una regla no se cumple o un formato es inválido
-    public const string Confirmar = "confirmar";         // hay un valor, pero no salió literal del texto
-    public const string Falta = "falta";                 // dato obligatorio vacío
-}
-
-/// <param name="Grupo">Pendientes del mismo grupo se pueden preguntar juntos (ej. todos los datos de una persona).</param>
-/// <param name="Campo">Ruta del dato, ej. partes[1].dni.</param>
-/// <param name="Etiqueta">Texto legible, ej. "DNI de Lucía Fernández".</param>
-/// <param name="Detalle">Información extra para armar la pregunta (valor actual, candidatos, motivo).</param>
-public record Pendiente(string Tipo, string Grupo, string Campo, string Etiqueta, string? Detalle = null);
 
 public record EstadoPoder(
     List<Pendiente> Pendientes,
@@ -29,7 +17,7 @@ public record EstadoPoder(
 /// Evalúa el poder y devuelve qué falta, qué confirmar y qué está mal, en el orden en que conviene
 /// resolverlo. C# puro: la IA después solo redacta la pregunta.
 /// Obligatorios tomados del HTML estático (persona física, igual para otorgante y apoderado),
-/// más género (se pregunta siempre, no se deduce del nombre) y localidad del inmueble.
+/// más género (se pregunta siempre, no se deduce del nombre). Los datos de los bloques (inmueble, vehículo...) los evalúa EvaluadorBloques.
 /// </summary>
 public static class MotorFaltantes
 {
@@ -67,7 +55,7 @@ public static class MotorFaltantes
         pendientes.AddRange(datosPartes);
 
         Facultades(poder, pendientes);
-        Inmueble(poder, pendientes);
+        pendientes.AddRange(EvaluadorBloques.Pendientes(poder));   // inmueble, vehículos, cuenta, expediente...
         Condiciones(poder, pendientes);
 
         // Dentro de cada grupo: primero lo inconsistente, después confirmar, después lo que falta.
@@ -188,18 +176,6 @@ public static class MotorFaltantes
         if (porDefault.Count > 0)
             pendientes.Add(new(TipoPendiente.Confirmar, g, "facultades", "Facultades aplicadas por defecto",
                 string.Join(", ", porDefault)));
-    }
-
-    private static void Inmueble(PoderExtraido poder, List<Pendiente> pendientes)
-    {
-        // Solo si el poder es sobre un inmueble (lo decide el completador con el catálogo).
-        if (!poder.RequiereInmueble) return;
-
-        const string g = "inmueble";
-        var inm = poder.Inmueble;
-        if (!inm.Direccion.TieneValor) pendientes.Add(new(TipoPendiente.Falta, g, "inmueble.direccion", "Dirección del inmueble"));
-        if (!inm.Localidad.TieneValor) pendientes.Add(new(TipoPendiente.Falta, g, "inmueble.localidad", "Localidad del inmueble"));
-        if (!inm.Provincia.TieneValor) pendientes.Add(new(TipoPendiente.Falta, g, "inmueble.provincia", "Provincia del inmueble"));
     }
 
     private static void Condiciones(PoderExtraido poder, List<Pendiente> pendientes)

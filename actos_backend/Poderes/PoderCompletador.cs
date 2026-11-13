@@ -1,3 +1,4 @@
+using actos_backend.Bloques;
 using actos_backend.Datos;
 
 namespace actos_backend.Poderes;
@@ -12,7 +13,7 @@ namespace actos_backend.Poderes;
 ///    sustitución, vigencia indefinida, revocable.
 /// Lo que dijo el usuario nunca se pisa: si difiere de la base, queda lo dicho y se genera un aviso.
 /// </summary>
-public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositorio catalogo)
+public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositorio catalogo, IActosRepositorio actos)
 {
     private const string SustitucionDefault = "sustitucion_sin";
     private const string VigenciaDefault = "vigencia_indefinida";
@@ -26,6 +27,7 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
             await CompletarParteAsync(poder.Partes[i], $"partes[{i}]", avisos, ct);
 
         await AplicarDefaultsAsync(poder, ct);
+        await ActivarPartesAsync(poder, ct);
 
         return avisos;
     }
@@ -114,22 +116,27 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
             avisos.Add(new Aviso(campo, $"Se dijo '{dato.Valor}' pero en la base figura '{valorBase}'. Se usa lo dicho."));
     }
 
+    /// <summary>
+    /// Qué pestañas aplican: el subtipo del poder es el tipo de poder, y las categorías son las de las
+    /// facultades elegidas (ej. una facultad de categoría "automotor" activa la pestaña de vehículos).
+    /// </summary>
+    private async Task ActivarPartesAsync(PoderExtraido poder, CancellationToken ct)
+    {
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
+        var categorias = poder.Facultades
+            .Select(f => clausulas.FirstOrDefault(c => c.Codigo == f.Valor)?.Categoria)
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        poder.Limpiar();
+        ActivadorPartes.Aplicar(poder, await actos.ObtenerPartesAsync(Actos.Poder, ct), poder.TipoPoder.Valor, categorias);
+    }
+
     private async Task AplicarDefaultsAsync(PoderExtraido poder, CancellationToken ct)
     {
-        var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
         bool Existe(string codigo) => clausulas.Any(c => c.Codigo == codigo);
 
-        // Un poder especial para un auto no lleva inmueble: solo se pide si alguna facultad es sobre
-        // inmuebles o si ya se dijo algo del inmueble.
-        var facultadesInmueble = clausulas
-            .Where(c => c.Tipo == "facultad" && c.Categoria == "inmuebles")
-            .Select(c => c.Codigo)
-            .ToHashSet();
-        var inm = poder.Inmueble;
-        var hayDatosInmueble = new[] { inm.Direccion, inm.Localidad, inm.Provincia, inm.Matricula, inm.Nomenclatura, inm.Tipo }
-            .Any(d => d.TieneValor);
-        poder.RequiereInmueble = poder.TipoPoder.Valor == "especial"
-            && (poder.Facultades.Any(f => f.Valor is not null && facultadesInmueble.Contains(f.Valor)) || hayDatosInmueble);
 
         if (poder.TipoPoder.Valor == "general" && poder.Facultades.Count == 0)
         {

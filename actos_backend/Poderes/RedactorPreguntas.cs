@@ -54,7 +54,7 @@ public class RedactorPreguntas(IIaClient ia, ICatalogoRepositorio catalogo)
 
     public async Task<MensajeRedactado> RedactarAsync(PoderExtraido poder, EstadoPoder estado, bool primerMensaje, CancellationToken ct = default)
     {
-        var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
         var nombres = clausulas.ToDictionary(c => c.Codigo, c => c.Nombre);
 
         var guion = Guion(poder, estado, nombres, primerMensaje);
@@ -111,6 +111,9 @@ public class RedactorPreguntas(IIaClient ia, ICatalogoRepositorio catalogo)
 
                 (TipoPendiente.Confirmar, "sustitucion" or "vigencia" or "revocabilidad") =>
                     $"Confirmar la condición: {Nombre(p.Detalle!)}.",
+
+                (TipoPendiente.Confirmar, "alcance") =>
+                    $"Preguntar textualmente: {p.Detalle}",
 
                 (TipoPendiente.Confirmar, _) =>
                     $"Confirmar: {p.Detalle}",

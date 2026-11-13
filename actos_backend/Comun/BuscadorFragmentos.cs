@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace actos_backend.Poderes;
+namespace actos_backend.Comun;
 
 /// <summary>
 /// Ubica en el texto original el fragmento que citó el modelo. Prueba de más estricto a

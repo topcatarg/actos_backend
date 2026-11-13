@@ -12,7 +12,8 @@ namespace actos_backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/tramites")]
-public class TramitesController(TramitesServicio servicio, ITramitesRepositorio tramites) : ControllerBase
+public class TramitesController(TramitesServicio servicio, ITramitesRepositorio tramites,
+    ILogger<TramitesController> logger) : ControllerBase
 {
     public record MensajeRequest(string Texto);
 
@@ -62,7 +63,7 @@ public class TramitesController(TramitesServicio servicio, ITramitesRepositorio 
             {
                 codigoTramite = tramite.CodigoTramite,
                 estadoTramite = tramite.Estado,
-                poder = tramite.Poder,
+                datos = tramite.Poder,
                 estado = MotorFaltantes.Evaluar(tramite.Poder),
                 mensajes
             });
@@ -70,9 +71,19 @@ public class TramitesController(TramitesServicio servicio, ITramitesRepositorio 
         catch (NpgsqlException ex) { return ErrorDb(ex); }
     }
 
-    private ObjectResult ErrorIa(IaException ex) => StatusCode(StatusCodes.Status502BadGateway,
-        new { error = ex.Message, statusProveedor = ex.StatusCode, detalle = ex.Detalle });
+    private ObjectResult ErrorIa(IaException ex)
+    {
+        logger.LogError("Error de IA en {Ruta}: {Error} (status {Status}). {Detalle}",
+            Request.Path, ex.Message, ex.StatusCode, ex.Detalle);
+        return StatusCode(StatusCodes.Status502BadGateway,
+            new { error = ex.Message, statusProveedor = ex.StatusCode, detalle = ex.Detalle });
+    }
 
-    private ObjectResult ErrorDb(NpgsqlException ex) => StatusCode(StatusCodes.Status503ServiceUnavailable,
-        new { error = "Error consultando Postgres.", detalle = ex.Message });
+    private ObjectResult ErrorDb(NpgsqlException ex)
+    {
+        // Con PostgresException el log trae el código SQL (ej. 42703 = columna inexistente) y la sentencia.
+        logger.LogError(ex, "Error de Postgres en {Ruta}: {Error}", Request.Path, ex.Message);
+        return StatusCode(StatusCodes.Status503ServiceUnavailable,
+            new { error = "Error consultando Postgres.", detalle = ex.Message });
+    }
 }
