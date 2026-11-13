@@ -50,6 +50,9 @@ public class InterpreteRespuestas(IIaClient ia, ILogger<InterpreteRespuestas> lo
           "confirmar" para cada campo de la PREGUNTA.
         - Si corrige ("no, al revés", "no, es soltera"), usá "valor" con el valor correcto, no "rechazar".
         - Si aporta datos que no se le preguntaron, devolvelos también como "valor".
+        - Nombres: si se pidió el apellido, devolvé partes[i].apellido con SOLO el apellido (ej. "Pérez");
+          si corrige los nombres de pila, partes[i].nombres. El nombre completo lo arma el sistema.
+          Usá partes[i].nombreCompleto solo si la respuesta da el nombre entero de nuevo.
         - Identidad: "confirmar" si es la persona de nuestros registros (si hay varias, poné en "valor" el DNI de la elegida).
         - Para una persona que todavía no está en el poder, usá el índice libre que indica CAMPOS.
         - Normalizá: DNI y CUIL solo dígitos; fechas AAAA-MM-DD; género M o F; rol otorgante o apoderado;
@@ -92,7 +95,7 @@ public class InterpreteRespuestas(IIaClient ia, ILogger<InterpreteRespuestas> lo
         {
             var p = poder.Partes[i];
             sb.AppendLine($"- partes[{i}] = {p.NombreCompleto.Valor ?? "sin nombre"} ({p.Rol.Valor ?? "sin rol"}): " +
-                          $"partes[{i}].rol, .nombreCompleto, .dni, .cuil, .genero, .estadoCivil, .nacionalidad, " +
+                          $"partes[{i}].rol, .nombreCompleto, .nombres, .apellido, .dni, .cuil, .genero, .estadoCivil, .nacionalidad, " +
                           $".fechaNacimiento, .domicilio, .padre, .madre" +
                           (p.Candidatos.Count > 0 ? $", .identidad (candidatos: {string.Join("; ", p.Candidatos.Select(c => $"{c.NombreCompleto} DNI {c.Dni}"))})" : ""));
         }

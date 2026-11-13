@@ -14,7 +14,7 @@ public record AccionAplicada(string Campo, string Accion, string? Valor, string 
 public static class AplicadorRespuestas
 {
     private static readonly Regex CampoParte = new(
-        @"^partes\[(\d+)\]\.(rol|nombreCompleto|dni|cuil|genero|estadoCivil|nacionalidad|fechaNacimiento|domicilio|padre|madre|identidad)$");
+        @"^partes\[(\d+)\]\.(rol|nombreCompleto|nombres|apellido|dni|cuil|genero|estadoCivil|nacionalidad|fechaNacimiento|domicilio|padre|madre|identidad)$");
     private static readonly Regex CampoInmueble = new(@"^inmueble\.(direccion|localidad|provincia|matricula|nomenclatura|tipo)$");
     private static readonly string[] CamposPoder = ["tipoPoder", "facultades", "sustitucion", "vigencia", "fechaVigencia", "revocabilidad"];
 
@@ -109,6 +109,12 @@ public static class AplicadorRespuestas
                 dato.Fragmento = inicio is null ? null : a.Fragmento;
                 dato.Inicio = inicio;
                 dato.Origen = OrigenDato.Respuesta;
+
+                // Los tres campos del nombre se mantienen coherentes.
+                if (parte is not null && nombreCampo is "nombres" or "apellido")
+                    NombresPersona.DesdePartes(parte, OrigenDato.Respuesta);
+                else if (parte is not null && nombreCampo == "nombreCompleto")
+                    NombresPersona.DesdeCompleto(parte);
                 return null;
 
             default:
@@ -142,8 +148,13 @@ public static class AplicadorRespuestas
             if (elegido is null) return $"'{a.Valor}' no coincide con ningún candidato.";
         }
 
-        // El DNI de la persona elegida dispara la búsqueda en la base al completar.
+        // Confirmada por el usuario: queda identificada, y el nombre se toma tal cual figura en el registro
+        // (al completar, desde el DNI). El DNI dispara la búsqueda en la base.
         parte.Dni = new Dato { Valor = Normalizadores.SoloDigitos(elegido.Dni ?? ""), Origen = OrigenDato.Confirmado };
+        parte.PfId = elegido.PfId;
+        parte.NombreCompleto = new Dato();
+        parte.Nombres = new Dato();
+        parte.Apellido = new Dato();
         parte.Candidatos = [];
         return null;
     }
@@ -190,7 +201,8 @@ public static class AplicadorRespuestas
     private static Dato DatoDe(PoderExtraido poder, ParteExtraida? parte, string campo) => parte is not null
         ? campo switch
         {
-            "rol" => parte.Rol, "nombreCompleto" => parte.NombreCompleto, "dni" => parte.Dni, "cuil" => parte.Cuil,
+            "rol" => parte.Rol, "nombreCompleto" => parte.NombreCompleto, "nombres" => parte.Nombres,
+            "apellido" => parte.Apellido, "dni" => parte.Dni, "cuil" => parte.Cuil,
             "genero" => parte.Genero, "estadoCivil" => parte.EstadoCivil, "nacionalidad" => parte.Nacionalidad,
             "fechaNacimiento" => parte.FechaNacimiento, "domicilio" => parte.Domicilio,
             "padre" => parte.Padre, _ => parte.Madre
@@ -224,7 +236,7 @@ public static class AplicadorRespuestas
     private static void SoltarDatosDeBase(ParteExtraida parte)
     {
         parte.PfId = null;
-        foreach (var d in new[] { parte.NombreCompleto, parte.Cuil, parte.Genero, parte.EstadoCivil, parte.Nacionalidad,
+        foreach (var d in new[] { parte.NombreCompleto, parte.Nombres, parte.Apellido, parte.Cuil, parte.Genero, parte.EstadoCivil, parte.Nacionalidad,
                                   parte.FechaNacimiento, parte.Domicilio, parte.Padre, parte.Madre })
             if (d.Origen == OrigenDato.Base)
             {

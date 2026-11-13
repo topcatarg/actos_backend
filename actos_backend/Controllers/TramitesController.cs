@@ -1,6 +1,7 @@
 using actos_backend.Datos;
 using actos_backend.Ia;
 using actos_backend.Poderes;
+using actos_backend.Tramites;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 
@@ -11,14 +12,11 @@ namespace actos_backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/tramites")]
-public class TramitesController(ConversacionPoder conversacion, ITramitesRepositorio tramites) : ControllerBase
+public class TramitesController(TramitesServicio servicio, ITramitesRepositorio tramites) : ControllerBase
 {
     public record MensajeRequest(string Texto);
 
-    /// <summary>Lo que necesita el front para mostrar la conversación.</summary>
-    public record RespuestaTramite(string CodigoTramite, string EstadoTramite, string Mensaje, EstadoPoder Estado, PoderExtraido Poder, object Detalle);
-
-    /// <summary>Crea un trámite de poder a partir del primer mensaje.</summary>
+    /// <summary>Crea un trámite de poder a partir del primer mensaje (sin pasar por el clasificador).</summary>
     [HttpPost("poder")]
     public async Task<IActionResult> Crear([FromBody] MensajeRequest pedido, CancellationToken ct)
     {
@@ -27,13 +25,7 @@ public class TramitesController(ConversacionPoder conversacion, ITramitesReposit
 
         try
         {
-            var r = await conversacion.IniciarAsync(pedido.Texto, ct);
-            var estadoTramite = ConversacionPoder.EstadoTramite(r.Estado);
-            var guardado = await tramites.CrearAsync("poder", estadoTramite, r.Poder, r.Estado.Siguiente,
-                pedido.Texto, r.Mensaje.Mensaje, ct);
-
-            return Ok(new RespuestaTramite(guardado.CodigoTramite, estadoTramite, r.Mensaje.Mensaje, r.Estado, r.Poder,
-                new { r.Descartes, r.Avisos, guion = r.Mensaje.Guion }));
+            return Ok(await servicio.CrearPoderAsync(pedido.Texto, ct));
         }
         catch (IaException ex) { return ErrorIa(ex); }
         catch (NpgsqlException ex) { return ErrorDb(ex); }
@@ -48,16 +40,8 @@ public class TramitesController(ConversacionPoder conversacion, ITramitesReposit
 
         try
         {
-            var tramite = await tramites.ObtenerAsync(codigo, ct);
-            if (tramite is null) return NotFound(new { error = $"No existe el trámite {codigo}." });
-
-            var r = await conversacion.ResponderAsync(tramite.Poder, tramite.Siguiente, pedido.Texto, ct);
-            var estadoTramite = ConversacionPoder.EstadoTramite(r.Estado);
-            await tramites.ActualizarAsync(tramite, estadoTramite, r.Poder, r.Estado.Siguiente,
-                pedido.Texto, r.Mensaje.Mensaje, ct);
-
-            return Ok(new RespuestaTramite(codigo, estadoTramite, r.Mensaje.Mensaje, r.Estado, r.Poder,
-                new { r.Acciones, r.Avisos, guion = r.Mensaje.Guion }));
+            var r = await servicio.ResponderAsync(codigo, pedido.Texto, ct);
+            return r is null ? NotFound(new { error = $"No existe el trámite {codigo}." }) : Ok(r);
         }
         catch (TramiteModificadoException ex) { return Conflict(new { error = ex.Message }); }
         catch (IaException ex) { return ErrorIa(ex); }

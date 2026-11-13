@@ -8,6 +8,8 @@ public class PersonaMaestro
 {
     public int PfId { get; init; }
     public string NombreCompleto { get; init; } = "";
+    public string? Nombres { get; init; }
+    public string? Apellido { get; init; }
     public string? Dni { get; init; }
     public string? CuitCuil { get; init; }
     public DateTime? FechaNacimiento { get; init; }
@@ -35,7 +37,8 @@ public class CandidatoPersona
 public interface IPersonasRepositorio
 {
     Task<PersonaMaestro?> BuscarPorDniAsync(string dni, CancellationToken ct = default);
-    Task<IReadOnlyList<CandidatoPersona>> BuscarPorNombreAsync(string nombre, CancellationToken ct = default);
+    /// <summary>Personas que tienen TODAS las palabras del nombre (palabras enteras) y ese apellido.</summary>
+    Task<IReadOnlyList<CandidatoPersona>> BuscarPorNombreAsync(string nombreCompleto, string apellido, CancellationToken ct = default);
 }
 
 public class PersonasRepositorio(NpgsqlDataSource db) : IPersonasRepositorio
@@ -43,7 +46,7 @@ public class PersonasRepositorio(NpgsqlDataSource db) : IPersonasRepositorio
     public async Task<PersonaMaestro?> BuscarPorDniAsync(string dni, CancellationToken ct = default)
     {
         const string sql = """
-            SELECT pf.pf_id, pf.nombre_completo, pf.dni, pf.cuit_cuil, pf.fecha_nacimiento,
+            SELECT pf.pf_id, pf.nombre_completo, pf.nombres, pf.apellido, pf.dni, pf.cuit_cuil, pf.fecha_nacimiento,
                    pf.nacionalidad, pf.padre, pf.madre, pf.genero,
                    dom.direccion, dom.ciudad, dom.provincia,
                    ec.estado_civil, ec.conyuge_nombre
@@ -64,32 +67,33 @@ public class PersonasRepositorio(NpgsqlDataSource db) : IPersonasRepositorio
             new CommandDefinition(sql, new { Dni = soloDigitos }, cancellationToken: ct));
     }
 
-    public async Task<IReadOnlyList<CandidatoPersona>> BuscarPorNombreAsync(string nombre, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CandidatoPersona>> BuscarPorNombreAsync(string nombreCompleto, string apellido,
+        CancellationToken ct = default)
     {
-        // Cuenta cuántas palabras del nombre aparecen (sin acentos ni mayúsculas).
-        // Con dos o más palabras exige al menos dos coincidencias, para no traer a todos los "Pérez".
+        // Todas las palabras del nombre tienen que estar, como palabras enteras (\m...\M), en el nombre
+        // completo del registro; y el apellido tiene que coincidir con la columna apellido si está cargada.
+        // Así "Juan Pérez" no trae a "Juana Pérez" ni a "Juan Carlos Gómez".
         const string sql = """
-            SELECT pf.pf_id, pf.nombre_completo, pf.dni, s.coincidencias
+            SELECT pf.pf_id, pf.nombre_completo, pf.dni, cardinality(@Palabras)::bigint AS coincidencias
             FROM pf_maestro pf
-            CROSS JOIN LATERAL (
-                SELECT count(*) AS coincidencias
-                FROM unnest(@Palabras) AS p(palabra)
-                WHERE unaccent(lower(pf.nombre_completo)) LIKE '%' || unaccent(lower(p.palabra)) || '%'
-            ) s
-            WHERE s.coincidencias >= LEAST(2, cardinality(@Palabras))
-            ORDER BY s.coincidencias DESC, pf.nombre_completo
+            WHERE (SELECT bool_and(unaccent(lower(pf.nombre_completo)) ~ ('\m' || p.palabra || '\M'))
+                   FROM unnest(@Palabras) AS p(palabra))
+              AND (pf.apellido IS NULL OR unaccent(lower(pf.apellido)) = unaccent(lower(@Apellido)))
+            ORDER BY pf.nombre_completo
             LIMIT 5
             """;
 
-        // Palabras de menos de 3 letras ("de", "la") no discriminan.
-        var palabras = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                             .Where(p => p.Length >= 3)
-                             .ToArray();
-        if (palabras.Length == 0) return [];
+        // Solo letras: las palabras van dentro de una expresión regular.
+        var palabras = Poderes.NombresPersona.Palabras($"{nombreCompleto} {apellido}")
+            .Select(p => new string(p.Where(char.IsLetter).ToArray()))
+            .Where(p => p.Length > 0)
+            .Distinct()
+            .ToArray();
+        if (palabras.Length < 2) return [];
 
         await using var conn = await db.OpenConnectionAsync(ct);
-        var filas = await conn.QueryAsync<CandidatoPersona>(
-            new CommandDefinition(sql, new { Palabras = palabras }, cancellationToken: ct));
+        var filas = await conn.QueryAsync<CandidatoPersona>(new CommandDefinition(sql,
+            new { Palabras = palabras, Apellido = apellido.Trim() }, cancellationToken: ct));
         return filas.AsList();
     }
 }

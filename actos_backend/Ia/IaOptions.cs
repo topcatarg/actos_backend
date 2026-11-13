@@ -28,6 +28,14 @@ public class IaOptions
     /// </summary>
     public string? NivelRazonamiento { get; set; }
 
+    /// <summary>Tiempo máximo de toda la llamada (conectar + que el modelo responda).</summary>
     [Range(5, 300)]
-    public int TimeoutSegundos { get; set; } = 60;
+    public int TimeoutSegundos { get; set; } = 90;
+
+    /// <summary>
+    /// Tiempo máximo para abrir la conexión TCP con cada dirección del proveedor. Si una no conecta
+    /// (ej. IPv6 roto), se prueba la siguiente en vez de esperar todo TimeoutSegundos.
+    /// </summary>
+    [Range(1, 60)]
+    public int TimeoutConexionSegundos { get; set; } = 5;
 }

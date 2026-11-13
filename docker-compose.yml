@@ -1,6 +1,8 @@
 # Postgres local para el backend de prueba. Datos inventados, nada real.
 # Levantar:  docker compose up -d
-# Resetear (borra todo y vuelve a correr los scripts de db/init):  docker compose down -v && docker compose up -d
+# La base arranca VACÍA: el esquema lo crea el backend con POST /api/db/migrar
+# (scripts en actos_backend/Migraciones/Scripts).
+# Borrar todo y empezar de cero:  POST /api/db/regenerar?confirmar=true   (solo en Development)
 services:
   postgres:
     image: postgres:17
@@ -13,7 +15,6 @@ services:
       - "5433:5432"   # 5433 para no chocar con un Postgres instalado en la máquina
     volumes:
       - actos_pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
 
 volumes:

@@ -57,6 +57,12 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
               completá su valor (otorgante o apoderado). Lo que puede quedar en null es solo el fragmento,
               cuando no hay palabras concretas que lo digan. Dejá el valor del rol en null únicamente si
               es imposible saber qué papel tiene la persona.
+            - nombreCompleto: TODOS los nombres y apellidos de la persona tal como aparecen en el texto
+              ("Juan Carlos Pérez", nunca solo "Juan" si el apellido está escrito). Si el texto dice solo el
+              nombre de pila, devolvé solo eso: no inventes ni completes el apellido.
+            - nombres y apellido: separalos solo si es claro cuál es cuál ("Juan Carlos Pérez" → nombres
+              "Juan Carlos", apellido "Pérez"). Si hay duda ("Juan Carlos", "María José", un solo nombre),
+              dejá el apellido en null: se va a preguntar aparte. Nunca adivines el apellido.
             - tipoPoder: "general" o "especial" (especial = para un acto o bien determinado).
             - Facultades y condiciones: usá únicamente los códigos de las listas de abajo, y solo si el texto
               las pide. Si el texto no menciona ninguna facultad, devolvé la lista vacía. No agregues defaults.
@@ -97,7 +103,11 @@ public class PoderExtractor(IIaClient ia, ICatalogoRepositorio catalogo, ILogger
                 var c = $"partes[{i}]";
                 // El rol es una interpretación: si no hay frase literal, se conserva como "inferido" para confirmar.
                 Dato(parte.Rol, $"{c}.rol", Codigo(Roles), fragmentoOpcional: true);
+                parte.Nombres ??= new();
+                parte.Apellido ??= new();
                 Dato(parte.NombreCompleto, $"{c}.nombreCompleto");
+                Dato(parte.Nombres, $"{c}.nombres");
+                Dato(parte.Apellido, $"{c}.apellido");
                 Dato(parte.Dni, $"{c}.dni", SoloDigitos);
                 Dato(parte.Cuil, $"{c}.cuil", SoloDigitos);
                 Dato(parte.EstadoCivil, $"{c}.estadoCivil");

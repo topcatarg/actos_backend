@@ -141,6 +141,11 @@ public static class MotorFaltantes
             if (!dato(parte).TieneValor)
                 pendientes.Add(new(TipoPendiente.Falta, g, $"{g}.{campo}", $"{nombreCampo} de {quien}"));
 
+        // Con nombre pero sin apellido identificado: se pregunta el apellido aparte (no se adivina).
+        if (parte.NombreCompleto.TieneValor && !parte.Apellido.TieneValor)
+            pendientes.Add(new(TipoPendiente.Falta, g, $"{g}.apellido", $"Apellido de {quien}",
+                $"No está claro cuál es el apellido en «{parte.NombreCompleto.Valor}»."));
+
         // Formatos (mismas reglas que el HTML al guardar).
         if (parte.Dni.TieneValor && !Regex.IsMatch(parte.Dni.Valor!, @"^\d{7,8}$"))
             pendientes.Add(new(TipoPendiente.Inconsistente, g, $"{g}.dni", $"DNI de {quien}",
@@ -187,8 +192,8 @@ public static class MotorFaltantes
 
     private static void Inmueble(PoderExtraido poder, List<Pendiente> pendientes)
     {
-        // Por ahora el único poder especial es el de inmueble.
-        if (poder.TipoPoder.Valor != "especial") return;
+        // Solo si el poder es sobre un inmueble (lo decide el completador con el catálogo).
+        if (!poder.RequiereInmueble) return;
 
         const string g = "inmueble";
         var inm = poder.Inmueble;
@@ -228,7 +233,7 @@ public static class MotorFaltantes
 
     private static string Etiqueta(string campo) => campo[(campo.LastIndexOf('.') + 1)..] switch
     {
-        "nombreCompleto" => "Nombre", "dni" => "DNI", "cuil" => "CUIL", "estadoCivil" => "Estado civil",
+        "nombreCompleto" => "Nombre", "nombres" => "Nombres", "apellido" => "Apellido", "dni" => "DNI", "cuil" => "CUIL", "estadoCivil" => "Estado civil",
         "nacionalidad" => "Nacionalidad", "fechaNacimiento" => "Fecha de nacimiento", "domicilio" => "Domicilio",
         "padre" => "Padre", "madre" => "Madre", "genero" => "Género", var otro => otro
     };

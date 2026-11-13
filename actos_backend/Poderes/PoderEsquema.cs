@@ -16,7 +16,9 @@ public static class PoderEsquema
         ("tipoPoder", Dato("Tipo de poder: general o especial")),
         ("partes", Lista(Objeto(
             ("rol", Dato("otorgante (quien da el poder) o apoderado (quien lo recibe). El valor se completa siempre que se entienda por el contexto; el fragmento puede ser null")),
-            ("nombreCompleto", Dato("Nombre y apellido")),
+            ("nombreCompleto", Dato("Nombres y apellido completos, tal como aparecen")),
+            ("nombres", Dato("Solo los nombres de pila; null si no está claro cuáles son")),
+            ("apellido", Dato("Solo el apellido; null si no está claro cuál es (ej. 'Juan Carlos' sin más)")),
             ("dni", Dato("Solo dígitos")),
             ("cuil", Dato("Solo dígitos")),
             ("estadoCivil", Dato("soltero/a, casado/a, divorciado/a, viudo/a")),

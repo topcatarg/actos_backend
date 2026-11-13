@@ -124,6 +124,9 @@ public class RedactorPreguntas(IIaClient ia, ICatalogoRepositorio catalogo)
                 (TipoPendiente.Falta, "apoderado") =>
                     "Todavía no se indicó a favor de quién se otorga el poder. Pedir nombre completo y DNI del apoderado.",
 
+                (TipoPendiente.Falta, "apellido") =>
+                    $"Pedir el apellido de {quien}, por separado (de «{quien}» no está claro cuál es el apellido).",
+
                 (TipoPendiente.Falta, "genero") =>
                     $"Pedir el género de {quien} tal como figura en su DNI (masculino o femenino).",
 

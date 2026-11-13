@@ -50,12 +50,23 @@ public class PoderExtraido
     /// para no generar con datos que no confirmó.
     /// </summary>
     public bool GeneracionConfirmada { get; set; }
+
+    /// <summary>
+    /// Si hay que pedir los datos del inmueble: poder especial con alguna facultad sobre inmuebles
+    /// (categoría "inmuebles" del catálogo) o con datos de un inmueble ya dichos. Lo calcula el
+    /// completador, que tiene el catálogo; el motor de faltantes solo lo lee.
+    /// </summary>
+    public bool RequiereInmueble { get; set; }
 }
 
 public class ParteExtraida
 {
     public Dato Rol { get; set; } = new();                // otorgante | apoderado
+    /// <summary>Siempre "nombres apellido". Lo arma C# a partir de las partes cuando están las dos.</summary>
     public Dato NombreCompleto { get; set; } = new();
+    public Dato Nombres { get; set; } = new();
+    /// <summary>Nunca se adivina: si no está claro cuál es, queda vacío y se pregunta aparte.</summary>
+    public Dato Apellido { get; set; } = new();
     public Dato Dni { get; set; } = new();
     public Dato Cuil { get; set; } = new();
     public Dato EstadoCivil { get; set; } = new();

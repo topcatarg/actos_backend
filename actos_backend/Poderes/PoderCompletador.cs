@@ -4,8 +4,10 @@ namespace actos_backend.Poderes;
 
 /// <summary>
 /// Completa el poder extraído con lo que ya sabemos, sin IA:
-/// 1. Personas identificadas por DNI → completa los datos vacíos desde el maestro.
-/// 2. Personas sin DNI → busca candidatos por nombre, pero NO completa nada (lo confirma el usuario).
+/// 1. Personas con DNI del registro → si el nombre dicho es el mismo (todas las palabras), completa los datos
+///    vacíos desde el maestro; si no, la ofrece como candidata y pregunta si es ella.
+/// 2. Personas sin DNI → con nombre y apellido busca candidatos que tengan todas esas palabras, pero NO
+///    completa nada: lo confirma el usuario.
 /// 3. Defaults: poder general sin facultades → todas las aplicables; condiciones no dichas → sin
 ///    sustitución, vigencia indefinida, revocable.
 /// Lo que dijo el usuario nunca se pisa: si difiere de la base, queda lo dicho y se genera un aviso.
@@ -30,14 +32,49 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
 
     private async Task CompletarParteAsync(ParteExtraida parte, string campo, List<Aviso> avisos, CancellationToken ct)
     {
+        parte.Nombres ??= new();
+        parte.Apellido ??= new();
+        NombresPersona.Normalizar(parte);
+
+        // Los candidatos se recalculan en cada vuelta; la elección del usuario ya quedó en PfId/DNI.
+        parte.Candidatos = [];
+
         if (parte.Dni.TieneValor)
         {
             var persona = await personas.BuscarPorDniAsync(parte.Dni.Valor!, ct);
             if (persona is null) return; // persona nueva: lo que falte se pregunta
 
+            // El DNI solo no alcanza: el nombre dicho tiene que ser el de esa persona (todas las palabras),
+            // o el usuario tiene que haberla elegido. Si no, se le pregunta si es ella.
+            var esLaMisma = parte.PfId == persona.PfId
+                            || !parte.NombreCompleto.TieneValor
+                            || NombresPersona.MismasPalabras(parte.NombreCompleto.Valor, persona.NombreCompleto);
+
+            if (!esLaMisma)
+            {
+                parte.PfId = null;
+                if (parte.PersonaNueva)
+                {
+                    // Dijo que no es la del registro, pero el DNI es de esa persona: hay que revisar el DNI.
+                    if (parte.Dni.Origen != OrigenDato.Confirmado)
+                        avisos.Add(new Aviso($"{campo}.dni",
+                            $"El DNI {parte.Dni.Valor} figura en el registro a nombre de {persona.NombreCompleto}."));
+                    return;
+                }
+
+                parte.Candidatos = [new CandidatoPersona
+                {
+                    PfId = persona.PfId, NombreCompleto = persona.NombreCompleto, Dni = persona.Dni, Coincidencias = 0
+                }];
+                return;
+            }
+
             parte.PfId = persona.PfId;
 
             Completar(parte.NombreCompleto, persona.NombreCompleto, $"{campo}.nombreCompleto", avisos);
+            Completar(parte.Nombres, persona.Nombres, $"{campo}.nombres", avisos);
+            Completar(parte.Apellido, persona.Apellido, $"{campo}.apellido", avisos);
+            NombresPersona.Normalizar(parte);
             Completar(parte.Cuil, SoloDigitos(persona.CuitCuil), $"{campo}.cuil", avisos);
             Completar(parte.EstadoCivil, persona.EstadoCivil, $"{campo}.estadoCivil", avisos);
             Completar(parte.Nacionalidad, persona.Nacionalidad, $"{campo}.nacionalidad", avisos);
@@ -49,12 +86,14 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
             return;
         }
 
-        if (parte.NombreCompleto.TieneValor && !parte.PersonaNueva)
+        // Sin DNI: se busca en el registro solo con nombre y apellido, y solo personas que tengan
+        // TODAS esas palabras. Nunca se toma una sola sin que el usuario la confirme.
+        if (parte.PfId is null && !parte.PersonaNueva && parte.NombreCompleto.TieneValor && parte.Apellido.TieneValor)
         {
-            parte.Candidatos = (await personas.BuscarPorNombreAsync(parte.NombreCompleto.Valor!, ct)).ToList();
+            parte.Candidatos = (await personas.BuscarPorNombreAsync(parte.NombreCompleto.Valor!, parte.Apellido.Valor!, ct)).ToList();
             if (parte.Candidatos.Count > 0)
                 avisos.Add(new Aviso(campo,
-                    $"'{parte.NombreCompleto.Valor}' no tiene DNI, pero hay {parte.Candidatos.Count} persona(s) parecida(s) en la base. Confirmar cuál es, o si es nueva."));
+                    $"'{parte.NombreCompleto.Valor}' no tiene DNI, pero hay {parte.Candidatos.Count} persona(s) con ese nombre en la base. Confirmar cuál es, o si es nueva."));
         }
     }
 
@@ -79,6 +118,18 @@ public class PoderCompletador(IPersonasRepositorio personas, ICatalogoRepositori
     {
         var clausulas = await catalogo.ObtenerClausulasActivasAsync(ct);
         bool Existe(string codigo) => clausulas.Any(c => c.Codigo == codigo);
+
+        // Un poder especial para un auto no lleva inmueble: solo se pide si alguna facultad es sobre
+        // inmuebles o si ya se dijo algo del inmueble.
+        var facultadesInmueble = clausulas
+            .Where(c => c.Tipo == "facultad" && c.Categoria == "inmuebles")
+            .Select(c => c.Codigo)
+            .ToHashSet();
+        var inm = poder.Inmueble;
+        var hayDatosInmueble = new[] { inm.Direccion, inm.Localidad, inm.Provincia, inm.Matricula, inm.Nomenclatura, inm.Tipo }
+            .Any(d => d.TieneValor);
+        poder.RequiereInmueble = poder.TipoPoder.Valor == "especial"
+            && (poder.Facultades.Any(f => f.Valor is not null && facultadesInmueble.Contains(f.Valor)) || hayDatosInmueble);
 
         if (poder.TipoPoder.Valor == "general" && poder.Facultades.Count == 0)
         {

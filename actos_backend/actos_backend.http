@@ -86,3 +86,79 @@ Content-Type: application/json
 GET {{host}}/api/tramites/{{codigo}}
 
 ###
+
+###
+### Base de datos: versión actual y migraciones pendientes
+GET {{host}}/api/db/version
+
+###
+### Crear o migrar la base a la última versión
+POST {{host}}/api/db/migrar
+
+###
+### Borrar TODO y regenerar desde cero (solo Development)
+POST {{host}}/api/db/regenerar?confirmar=true
+
+###
+### Asistente: bienvenida + actos/consultas (de la tabla actos)
+GET {{host}}/api/asistente/inicio
+
+###
+### Asistente: primer mensaje en texto libre (clasifica contra la tabla actos)
+POST {{host}}/api/asistente/mensajes
+Content-Type: application/json
+
+{
+  "texto": "Poder especial de Juan Pérez a favor de María Gómez para vender el auto"
+}
+
+###
+### Asistente: algo ambiguo (debería pedir aclaración)
+POST {{host}}/api/asistente/mensajes
+Content-Type: application/json
+
+{
+  "texto": "necesito hacer algo con el departamento de mi tía"
+}
+
+###
+### Asistente: elegir el acto explícitamente (lo que manda el front al tocar una opción)
+POST {{host}}/api/asistente/mensajes
+Content-Type: application/json
+
+{
+  "texto": "necesito hacer algo con el departamento de mi tía",
+  "acto": "poder"
+}
+
+###
+### IA: modelos activos y cuál está en uso
+GET {{host}}/api/ia/modelos
+
+###
+### IA: cambiar el modelo en uso
+PUT {{host}}/api/ia/modelo
+Content-Type: application/json
+
+{
+  "modelo": "gemini-3.8-flash"
+}
+
+###
+### IA: probar la conexión con el modelo en uso (o mandá "modelo" para probar otro)
+POST {{host}}/api/ia/conexion
+Content-Type: application/json
+
+{}
+
+###
+### IA: últimas pruebas de conexión
+GET {{host}}/api/ia/conexion?cantidad=10
+
+###
+### Actos: partes (pasos) de un acto
+GET {{host}}/api/actos/poder/partes
+
+###
+### Catálogo: facultades y condiciones (para mostrar nombres en el front)
+GET {{host}}/api/catalogo/clausulas
