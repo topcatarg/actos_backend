@@ -1,0 +1,28 @@
+Guardado de personas — archivos nuevos y cambios a mano
+
+NUEVOS (copiar tal cual)
+  Registro/IPersonaRegistrable.cs
+  Registro/GuardadoPersonas.cs
+  Datos/RegistroPersonasRepositorio.cs
+
+REEMPLAZAR
+  Tramites/TramitesServicio.cs
+
+A MANO (dos líneas)
+
+1) Poderes/PoderExtraccion.cs — que la parte del poder sea registrable:
+
+   using actos_backend.Registro;
+   ...
+   public class ParteExtraida : IPersonaRegistrable
+
+   (ya tiene todas las propiedades que pide la interfaz; no hay que agregar nada más)
+
+2) Program.cs — junto a los otros repositorios / servicios:
+
+   builder.Services.AddScoped<IRegistroPersonasRepositorio, RegistroPersonasRepositorio>();
+   builder.Services.AddScoped<actos_backend.Registro.GuardadoPersonas>();
+
+   (o `using actos_backend.Registro;` arriba y sin el prefijo)
+
+No hace falta migración: usa pf_maestro, pf_domicilios y pf_estado_civil como están.

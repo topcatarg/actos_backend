@@ -34,6 +34,7 @@ public static class PoderEsquema
         ("vigencia", Dato("Código de condición de vigencia")),
         ("fechaVigencia", Dato("AAAA-MM-DD, solo si la vigencia es hasta una fecha")),
         ("revocabilidad", Dato("Código de condición de revocabilidad")),
+        ("objetos", EsquemaBloques.EsquemaObjetos(bloques)),
         ("bloques", EsquemaBloques.Esquema(bloques))));
 
     private static JsonObject Dato(string descripcion) => EsquemaJson.Dato(descripcion);

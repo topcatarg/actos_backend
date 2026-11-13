@@ -1,0 +1,23 @@
+AsistenteController.cs: dos cambios (el resto queda igual)
+
+1) Constructor: sumar el logger al final.
+
+public class AsistenteController(
+    IActosRepositorio actos,
+    ClasificadorIntencion clasificador,
+    TramitesServicio tramites,
+    ILogger<AsistenteController> logger) : ControllerBase
+
+2) En Mensaje(), reemplazar el catch de IaException:
+
+        catch (IaException ex)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { error = ex.Message, statusProveedor = ex.StatusCode, detalle = ex.Detalle });
+        }
+
+por:
+
+        catch (IaException ex) { return ErroresIa.Respuesta(this, ex, logger); }
+
+(El using de actos_backend.Ia ya está.)

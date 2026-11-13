@@ -10,13 +10,17 @@ namespace actos_backend.Bloques;
 ///   "categoria:inmuebles"  → alguna cláusula elegida es de esa categoría
 ///   "a&b"                  → se tienen que cumplir las dos (ej. "subtipo:especial&categoria:inmuebles")
 ///   varias separadas por "|" → alcanza con que se cumpla una
-/// Además, una parte con bloque de datos se activa si ya se dijo algo de ese bloque.
+/// Además, una parte con bloque de datos se activa si ya se dijo algo de ese bloque, o si el pedido
+/// menciona ese objeto aunque no traiga datos ("un inmueble"): la condición depende de cómo se
+/// interpretaron las cláusulas, y el objeto mencionado es lo más directo que dijo el usuario.
 /// </summary>
 public static class ActivadorPartes
 {
     public static void Aplicar(DatosActo datos, IReadOnlyList<ParteActo> partes, string? subtipo, ISet<string> categorias)
     {
-        var activas = partes.Where(p => Cumple(p.Condicion, subtipo, categorias) || (p.Bloque is { } b && datos.TieneDatos(b))).ToList();
+        var activas = partes.Where(p => Cumple(p.Condicion, subtipo, categorias)
+                                        || (p.Bloque is { } b && (datos.TieneDatos(b) || datos.Menciona(b))))
+            .ToList();
 
         datos.PartesActivas = activas.Select(p => p.Codigo).ToList();
         datos.BloquesActivos = CatalogoBloques.De(activas.Select(p => p.Bloque)).Select(b => b.Codigo).ToList();

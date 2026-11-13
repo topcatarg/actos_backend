@@ -1,0 +1,11 @@
+### ===== Historial de trámites =====
+### Abiertos (todo lo que no está confirmado), del más reciente al más viejo
+GET {{host}}/api/tramites
+
+###
+### Todos, incluidos los confirmados
+GET {{host}}/api/tramites?todos=true
+
+###
+### Solo poderes abiertos, los últimos 10
+GET {{host}}/api/tramites?tipo=poder&limite=10

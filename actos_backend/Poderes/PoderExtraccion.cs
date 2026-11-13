@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using actos_backend.Registro;
 
 namespace actos_backend.Poderes;
 
@@ -14,7 +15,7 @@ public class PoderExtraido : DatosActo
     public Dato Revocabilidad { get; set; } = new();      // código de condición
 }
 
-public class ParteExtraida
+public class ParteExtraida: IPersonaRegistrable
 {
     public Dato Rol { get; set; } = new();                // otorgante | apoderado
     /// <summary>Siempre "nombres apellido". Lo arma C# a partir de las partes cuando están las dos.</summary>

@@ -1,5 +1,6 @@
 using actos_backend.Datos;
 using actos_backend.Poderes;
+using actos_backend.Registro;
 
 namespace actos_backend.Tramites;
 
@@ -11,8 +12,10 @@ public record RespuestaTramite(string CodigoTramite, string EstadoTramite, strin
 /// <summary>
 /// Crea y avanza trámites persistentes. Lo usan TramitesController (endpoints por acto) y
 /// AsistenteController (cuando el clasificador ya decidió el acto).
+/// En cada turno, antes de guardar el trámite, las personas van al registro (GuardadoPersonas):
+/// así el pf_id de las nuevas queda guardado en el trámite.
 /// </summary>
-public class TramitesServicio(ConversacionPoder conversacion, ITramitesRepositorio tramites)
+public class TramitesServicio(ConversacionPoder conversacion, ITramitesRepositorio tramites, GuardadoPersonas personas)
 {
     /// <summary>Códigos de la tabla actos que tienen implementación. Un acto habilitado que no esté acá se trata como no disponible.</summary>
     public static readonly IReadOnlySet<string> ActosImplementados = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "poder" };
@@ -30,12 +33,14 @@ public class TramitesServicio(ConversacionPoder conversacion, ITramitesRepositor
     public async Task<RespuestaTramite> CrearPoderAsync(string texto, CancellationToken ct = default)
     {
         var r = await conversacion.IniciarAsync(texto, ct);
+        var registro = await personas.GuardarAsync(r.Poder.Partes, ct);
+
         var estadoTramite = ConversacionPoder.EstadoTramite(r.Estado);
         var guardado = await tramites.CrearAsync("poder", estadoTramite, r.Poder, r.Estado.Siguiente,
             texto, r.Mensaje.Mensaje, ct);
 
         return new RespuestaTramite(guardado.CodigoTramite, estadoTramite, r.Mensaje.Mensaje, r.Estado, r.Poder,
-            new { r.Descartes, r.Avisos, guion = r.Mensaje.Guion });
+            new { r.Descartes, r.Avisos, guion = r.Mensaje.Guion, registro });
     }
 
     /// <summary>Siguiente mensaje en un trámite existente. Null si el trámite no existe.</summary>
@@ -45,10 +50,12 @@ public class TramitesServicio(ConversacionPoder conversacion, ITramitesRepositor
         if (tramite is null) return null;
 
         var r = await conversacion.ResponderAsync(tramite.Poder, tramite.Siguiente, texto, ct);
+        var registro = await personas.GuardarAsync(r.Poder.Partes, ct);
+
         var estadoTramite = ConversacionPoder.EstadoTramite(r.Estado);
         await tramites.ActualizarAsync(tramite, estadoTramite, r.Poder, r.Estado.Siguiente, texto, r.Mensaje.Mensaje, ct);
 
         return new RespuestaTramite(codigo, estadoTramite, r.Mensaje.Mensaje, r.Estado, r.Poder,
-            new { r.Acciones, r.Avisos, guion = r.Mensaje.Guion });
+            new { r.Acciones, r.Avisos, guion = r.Mensaje.Guion, registro });
     }
 }

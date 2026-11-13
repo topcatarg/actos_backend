@@ -12,6 +12,13 @@ public abstract class DatosActo
     /// </summary>
     public Dictionary<string, List<Dictionary<string, Dato>>> Bloques { get; set; } = [];
 
+    /// <summary>
+    /// Objetos sobre los que trata el acto, mencionados en el pedido aunque no se haya dado ningún dato
+    /// ("un inmueble", "el auto"). Valor = código de bloque; Fragmento = dónde se menciona.
+    /// Activan la pestaña del bloque (ver ActivadorPartes).
+    /// </summary>
+    public List<Dato> Objetos { get; set; } = [];
+
     /// <summary>Pestañas (códigos de actos_partes) que aplican a este trámite. Las calcula ActivadorPartes.</summary>
     public List<string> PartesActivas { get; set; } = [];
 
@@ -29,4 +36,8 @@ public abstract class DatosActo
     /// para no generar con datos que no confirmó.
     /// </summary>
     public bool GeneracionConfirmada { get; set; }
+
+    /// <summary>Si el pedido mencionó ese objeto (código de bloque).</summary>
+    public bool Menciona(string codigoBloque) =>
+        Objetos?.Any(o => string.Equals(o.Valor, codigoBloque, StringComparison.OrdinalIgnoreCase)) == true;
 }

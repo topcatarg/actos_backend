@@ -47,6 +47,8 @@ builder.Services.AddScoped<ICatalogoRepositorio, CatalogoRepositorio>();
 builder.Services.AddScoped<IPersonasRepositorio, PersonasRepositorio>();
 builder.Services.AddScoped<ITramitesRepositorio, TramitesRepositorio>();
 builder.Services.AddScoped<IActosRepositorio, ActosRepositorio>();
+builder.Services.AddScoped<IRegistroPersonasRepositorio, RegistroPersonasRepositorio>();
+builder.Services.AddScoped<actos_backend.Registro.GuardadoPersonas>();
 
 // Migraciones del esquema (scripts embebidos en Migraciones/Scripts). Se corren a pedido: POST /api/db/migrar
 builder.Services.AddScoped<MigradorBaseDatos>();

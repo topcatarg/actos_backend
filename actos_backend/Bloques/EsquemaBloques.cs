@@ -12,10 +12,20 @@ public static class EsquemaBloques
             EsquemaJson.Objeto(b.Campos.Select(c => (c.Clave, EsquemaJson.Dato(c.DescripcionIa))).ToArray()))))
             .ToArray());
 
+    /// <summary>"objetos": [ { valor: "inmueble", fragmento: "un inmueble" } ]</summary>
+    public static JsonObject EsquemaObjetos(IReadOnlyList<Bloque> bloques) =>
+        EsquemaJson.Lista(EsquemaJson.Dato(
+            $"Objeto del acto mencionado en el texto. Valor: {string.Join(", ", bloques.Select(b => b.Codigo))}"));
+
     public static string Instrucciones(IReadOnlyList<Bloque> bloques)
     {
         if (bloques.Count == 0) return "";
+        var codigos = string.Join(", ", bloques.Select(b => b.Codigo));
         var sb = new StringBuilder();
+        sb.AppendLine("- objetos: sobre qué objetos trata el acto, aunque el texto no dé ningún dato de ellos");
+        sb.AppendLine("  (ej. \"un inmueble\", \"el departamento\", \"el auto\", \"la cuenta del banco\", \"el juicio\").");
+        sb.AppendLine($"  Una entrada por tipo de objeto: valor = uno de estos códigos ({codigos}); fragmento = dónde se menciona.");
+        sb.AppendLine("  Si no menciona ningún objeto, dejá la lista vacía.");
         sb.AppendLine("- bloques: datos de los objetos del acto. Completá un bloque SOLO si el texto menciona ese objeto");
         sb.AppendLine("  concreto (una dirección, una patente, un banco, un expediente); si no, dejá su lista vacía.");
         foreach (var b in bloques)
@@ -38,6 +48,22 @@ public static class EsquemaBloques
                         validarDato(dato, $"bloques.{codigo}[{i}].{clave}", campo.Normalizar);
         }
         datos.Limpiar();
+
+        // Objetos: código de bloque conocido y fragmento que aparezca en el texto; uno por tipo.
+        datos.Objetos ??= [];
+        for (var i = 0; i < datos.Objetos.Count; i++)
+            if (datos.Objetos[i] is { } objeto)
+                validarDato(objeto, $"objetos[{i}]", CodigoDeBloque);
+        datos.Objetos = datos.Objetos
+            .Where(o => o is { TieneValor: true })
+            .DistinctBy(o => o.Valor)
+            .ToList();
+    }
+
+    private static string? CodigoDeBloque(string valor)
+    {
+        var codigo = valor.Trim().ToLowerInvariant();
+        return CatalogoBloques.Obtener(codigo) is null ? null : codigo;
     }
 
     /// <summary>Líneas de CAMPOS para interpretar respuestas: solo bloques activos y no descartados.</summary>

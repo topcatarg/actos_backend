@@ -18,6 +18,22 @@ public class TramiteGuardado
 
 public record MensajeChat(string Rol, string Texto, DateTime CreatedAt);
 
+/// <summary>Una fila del historial: lo justo para listar, sin los datos del acto.</summary>
+public class TramiteResumen
+{
+    public string CodigoTramite { get; init; } = "";
+    /// <summary>Código del acto (poder, compraventa...). Es el mismo código de la tabla actos.</summary>
+    public string TipoTramite { get; init; } = "";
+    /// <summary>Nombre del acto según la tabla actos; si no está, el código.</summary>
+    public string NombreActo { get; init; } = "";
+    public string Estado { get; init; } = "";
+    /// <summary>El primer mensaje del usuario (recortado): sirve de descripción para cualquier acto.</summary>
+    public string? Descripcion { get; init; }
+    public int CantidadMensajes { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+}
+
 /// <summary>Otro proceso modificó el trámite entre que se leyó y se guardó.</summary>
 public class TramiteModificadoException(string codigo)
     : Exception($"El trámite {codigo} fue modificado por otro pedido. Volvé a intentar.");
@@ -30,11 +46,19 @@ public interface ITramitesRepositorio
     Task<int> ActualizarAsync(TramiteGuardado anterior, string estado, PoderExtraido poder, List<Pendiente> siguiente,
         string mensajeUsuario, string mensajeAsistente, CancellationToken ct = default);
     Task<IReadOnlyList<MensajeChat>> MensajesAsync(int tramiteId, CancellationToken ct = default);
+
+    /// <summary>Historial, del más reciente al más viejo.</summary>
+    /// <param name="soloAbiertos">Sin los cerrados (confirmados).</param>
+    /// <param name="tipo">Código del acto, o null para todos.</param>
+    Task<IReadOnlyList<TramiteResumen>> ListarAsync(bool soloAbiertos, string? tipo, int limite, CancellationToken ct = default);
 }
 
 public class TramitesRepositorio(NpgsqlDataSource db) : ITramitesRepositorio
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>Estado que cuenta como cerrado. El resto (en_curso, listo) está abierto.</summary>
+    public const string EstadoCerrado = "confirmado";
 
     public async Task<TramiteGuardado> CrearAsync(string tipo, string estado, PoderExtraido poder, List<Pendiente> siguiente,
         string mensajeUsuario, string mensajeAsistente, CancellationToken ct = default)
@@ -127,6 +151,39 @@ public class TramitesRepositorio(NpgsqlDataSource db) : ITramitesRepositorio
 
         await using var conn = await db.OpenConnectionAsync(ct);
         var filas = await conn.QueryAsync<MensajeChat>(new CommandDefinition(sql, new { TramiteId = tramiteId }, cancellationToken: ct));
+        return filas.AsList();
+    }
+
+    public async Task<IReadOnlyList<TramiteResumen>> ListarAsync(bool soloAbiertos, string? tipo, int limite, CancellationToken ct = default)
+    {
+        // El nombre del acto sale de la tabla actos (LEFT JOIN: un trámite de un acto dado de baja igual se lista).
+        // La descripción es el primer mensaje del usuario: no depende de qué acto sea.
+        const string sql = """
+            SELECT t.codigo_tramite,
+                   t.tipo_tramite,
+                   COALESCE(a.nombre, t.tipo_tramite) AS nombre_acto,
+                   t.estado,
+                   (SELECT LEFT(m.texto, 160)
+                      FROM chat_mensajes m
+                     WHERE m.tramite_id = t.id AND m.rol = 'usuario'
+                     ORDER BY m.id
+                     LIMIT 1) AS descripcion,
+                   (SELECT COUNT(*)::int FROM chat_mensajes m WHERE m.tramite_id = t.id) AS cantidad_mensajes,
+                   t.created_at,
+                   t.updated_at
+            FROM chat_tramites t
+            LEFT JOIN actos a ON a.codigo = t.tipo_tramite
+            WHERE (NOT @SoloAbiertos OR t.estado <> @Cerrado)
+              AND (@Tipo::text IS NULL OR t.tipo_tramite = @Tipo)
+            ORDER BY t.updated_at DESC
+            LIMIT @Limite
+            """;
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        var filas = await conn.QueryAsync<TramiteResumen>(new CommandDefinition(sql, new
+        {
+            SoloAbiertos = soloAbiertos, Cerrado = EstadoCerrado, Tipo = tipo, Limite = limite
+        }, cancellationToken: ct));
         return filas.AsList();
     }
 

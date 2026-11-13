@@ -13,10 +13,15 @@ public class ConversacionPoder(
     InterpreteRespuestas interprete,
     ICatalogoRepositorio catalogo)
 {
-    /// <summary>Primer mensaje: extraer → completar → evaluar → redactar.</summary>
+    /// <summary>Primer mensaje: extraer → sugerir facultades → completar → evaluar → redactar.</summary>
     public async Task<ResultadoProceso> IniciarAsync(string texto, CancellationToken ct = default)
     {
         var extraccion = await extractor.ExtraerAsync(texto, ct);
+
+        // Ej. "transferencia de un inmueble" sin ninguna facultad de inmuebles → propone otorgar escrituras.
+        var clausulas = await catalogo.ObtenerClausulasActivasAsync(Actos.Poder, ct);
+        SugerenciaFacultades.Aplicar(extraccion.Poder, clausulas);
+
         var avisos = await completador.CompletarAsync(extraccion.Poder, ct);
         var estado = MotorFaltantes.Evaluar(extraccion.Poder, avisos);
         var mensaje = await redactor.RedactarAsync(extraccion.Poder, estado, primerMensaje: true, ct);

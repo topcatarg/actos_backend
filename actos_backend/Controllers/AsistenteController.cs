@@ -22,7 +22,9 @@ public class AsistenteController(
     // TODO: si hace falta personalizarlos por escribanía, pasarlos a configuración o a una tabla.
     private const string MensajeBienvenida = "¡Hola! Soy Neo. Contame qué necesitás: un acto para preparar o algo que quieras consultar.";
     private const string MensajeAyuda = "Esto es lo que puedo hacer por ahora. Escribime el pedido con tus palabras, como en los ejemplos:";
-
+    /// <summary>Código de la tabla actos que abre el historial de trámites.</summary>
+    private const string ConsultaHistorial = "consulta";
+    private const string MensajeHistorial = "Te abro la lista de trámites abiertos. Tocá uno para retomarlo donde quedó.";
     public record InicioResponse(string Mensaje, IReadOnlyList<OpcionActo> Opciones);
 
     /// <param name="Acto">Si viene (el usuario eligió una opción de una aclaración), no se clasifica: se usa ese acto.</param>
@@ -89,7 +91,9 @@ public class AsistenteController(
                 var opcion = opciones.FirstOrDefault(o => o.Codigo.Equals(intencion.Codigo, StringComparison.OrdinalIgnoreCase));
                 if (opcion is null)
                     return Aclarar(intencion.Alternativas, opciones);
-
+                // Las consultas no crean un trámite: el front muestra el historial.
+                if (opcion.Habilitado && opcion.Codigo.Equals(ConsultaHistorial, StringComparison.OrdinalIgnoreCase))
+                    return new RespuestaAsistente("historial", MensajeHistorial, Acto: opcion.Codigo);
                 if (!opcion.Habilitado || !TramitesServicio.Soporta(opcion.Codigo))
                     return new RespuestaAsistente("no_disponible",
                         $"{opcion.Nombre}: todavía no está disponible. Por ahora puedo ayudarte con lo que ves en «¿Qué puedo hacer?».",

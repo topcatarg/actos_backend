@@ -15,7 +15,28 @@ namespace actos_backend.Controllers;
 public class TramitesController(TramitesServicio servicio, ITramitesRepositorio tramites,
     ILogger<TramitesController> logger) : ControllerBase
 {
+    private const int LimiteMaximo = 200;
+
     public record MensajeRequest(string Texto);
+
+    /// <summary>
+    /// Historial de trámites, del más reciente al más viejo.
+    /// Por defecto solo los abiertos (todo lo que no está confirmado).
+    /// </summary>
+    /// <param name="todos">true = incluye los confirmados.</param>
+    /// <param name="tipo">Código del acto (poder, compraventa...). Vacío = todos.</param>
+    /// <param name="limite">Cuántos traer (1 a 200).</param>
+    [HttpGet]
+    public async Task<IActionResult> Listar([FromQuery] bool todos = false, [FromQuery] string? tipo = null,
+        [FromQuery] int limite = 50, CancellationToken ct = default)
+    {
+        try
+        {
+            var filtroTipo = string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim().ToLowerInvariant();
+            return Ok(await tramites.ListarAsync(!todos, filtroTipo, Math.Clamp(limite, 1, LimiteMaximo), ct));
+        }
+        catch (NpgsqlException ex) { return ErrorDb(ex); }
+    }
 
     /// <summary>Crea un trámite de poder a partir del primer mensaje (sin pasar por el clasificador).</summary>
     [HttpPost("poder")]
@@ -62,6 +83,8 @@ public class TramitesController(TramitesServicio servicio, ITramitesRepositorio 
             return Ok(new
             {
                 codigoTramite = tramite.CodigoTramite,
+                // El front lo necesita al retomar: con esto sabe qué acto es y qué pestañas mostrar.
+                tipoTramite = tramite.TipoTramite,
                 estadoTramite = tramite.Estado,
                 datos = tramite.Poder,
                 estado = MotorFaltantes.Evaluar(tramite.Poder),
@@ -71,13 +94,8 @@ public class TramitesController(TramitesServicio servicio, ITramitesRepositorio 
         catch (NpgsqlException ex) { return ErrorDb(ex); }
     }
 
-    private ObjectResult ErrorIa(IaException ex)
-    {
-        logger.LogError("Error de IA en {Ruta}: {Error} (status {Status}). {Detalle}",
-            Request.Path, ex.Message, ex.StatusCode, ex.Detalle);
-        return StatusCode(StatusCodes.Status502BadGateway,
-            new { error = ex.Message, statusProveedor = ex.StatusCode, detalle = ex.Detalle });
-    }
+    /// <summary>Por demanda: mensaje amigable (503). Otro error: el técnico (502). Ver ErroresIa.</summary>
+    private ObjectResult ErrorIa(IaException ex) => ErroresIa.Respuesta(this, ex, logger);
 
     private ObjectResult ErrorDb(NpgsqlException ex)
     {
